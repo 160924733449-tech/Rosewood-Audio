@@ -70,16 +70,30 @@ export default function Sidebar({
     setCurrentTab('playlist');
   };
 
+  const [showPlaylistPrompt, setShowPlaylistPrompt] = useState(false);
+  const [playlistName, setPlaylistName] = useState('');
+
   const triggerAddPlaylist = () => {
-    const name = prompt('Enter playlist name:');
-    if (name && name.trim()) {
-      onCreatePlaylist(name.trim());
+    setPlaylistName('');
+    setShowPlaylistPrompt(true);
+  };
+
+  const submitPlaylist = (e) => {
+    e.preventDefault();
+    if (playlistName && playlistName.trim()) {
+      onCreatePlaylist(playlistName.trim());
     }
+    setShowPlaylistPrompt(false);
+  };
+
+  const closePlaylistPrompt = () => {
+    setShowPlaylistPrompt(false);
   };
 
   const avatarChar = userProfile?.displayName ? userProfile.displayName.charAt(0).toUpperCase() : '?';
 
   return (
+    <>
     <aside className="sidebar glass">
       <div className="sidebar-logo">
         <Disc className="logo-icon spin" size={28} />
@@ -170,5 +184,28 @@ export default function Sidebar({
         </button>
       </div>
     </aside>
+
+      {showPlaylistPrompt && (
+        <div className="modal-overlay">
+          <div className="modal-content glass">
+            <h3>Create Playlist</h3>
+            <form onSubmit={submitPlaylist}>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Enter playlist name..."
+                value={playlistName}
+                onChange={(e) => setPlaylistName(e.target.value)}
+                className="modal-input"
+              />
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={closePlaylistPrompt}>Cancel</button>
+                <button type="submit" className="btn-primary" disabled={!playlistName.trim()}>Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

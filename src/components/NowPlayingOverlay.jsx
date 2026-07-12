@@ -115,6 +115,7 @@ export default function NowPlayingOverlay({
               alt="Artwork" 
               className="overlay-art water-drop-anim" 
               key={track.artwork} // Changing key forces element recreation to replay animation
+              decoding="async"
             />
           ) : (
             <div className="overlay-placeholder-art">

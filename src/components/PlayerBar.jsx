@@ -1,8 +1,9 @@
 import React, { useRef } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Zap } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Zap, Loader2 } from 'lucide-react';
 
 export default function PlayerBar({
   currentTrack,
+  loadingTrack,
   isPlaying,
   onPlayPauseToggle,
   onNext,
@@ -94,7 +95,7 @@ export default function PlayerBar({
         {currentTrack ? (
           <>
             {currentTrack.artwork ? (
-              <img src={currentTrack.artwork} alt="Artwork" className="player-art" />
+              <img src={currentTrack.artwork} alt="Artwork" className="player-art" decoding="async" />
             ) : (
               <div className="player-placeholder-art">
                 <Disc size={24} className={isPlaying ? "spin" : ""} />
@@ -127,8 +128,14 @@ export default function PlayerBar({
             <SkipBack size={18} />
           </button>
           
-          <button className="control-btn play-pause-btn" onClick={onPlayPauseToggle}>
-            {isPlaying ? <Pause size={20} fill="#000" /> : <Play size={20} fill="#000" style={{ transform: 'translateX(1px)' }} />}
+          <button className="control-btn play-pause-btn" onClick={onPlayPauseToggle} disabled={loadingTrack}>
+            {loadingTrack ? (
+              <Loader2 size={20} className="spinner" color="#000" />
+            ) : isPlaying ? (
+              <Pause size={20} fill="#000" />
+            ) : (
+              <Play size={20} fill="#000" style={{ transform: 'translateX(1px)' }} />
+            )}
           </button>
           
           <button className="control-btn" onClick={onNext} title="Next Track">

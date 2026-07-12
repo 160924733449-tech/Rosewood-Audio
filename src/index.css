@@ -775,6 +775,9 @@ body {
   cursor: pointer;
   background: var(--bg-base);
   border: 1px solid var(--border-subtle);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .music-card:hover {
@@ -829,6 +832,14 @@ body {
 .music-card:hover .card-play-overlay {
   opacity: 1;
   transform: translateY(0);
+}
+
+.card-info {
+  min-width: 0;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .card-info h4 {
@@ -1067,11 +1078,22 @@ body {
   background: var(--accent-rose);
   color: #ffffff;
   box-shadow: var(--shadow-glow);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .play-pause-btn:hover {
-  transform: scale(1.05);
+  transform: scale(1.1);
   background: var(--accent-deep);
+  box-shadow: 0 6px 20px rgba(200, 144, 167, 0.5);
+}
+
+.play-pause-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 2px 10px rgba(200, 144, 167, 0.3);
+}
+
+.play-pause-btn svg {
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 /* Timeline/Slider styling */
@@ -1360,4 +1382,250 @@ body {
 
 .water-drop-anim {
   animation: waterDrop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ==========================================================================
+   Responsive Layout (Mobile & Tablet)
+   ========================================================================== */
+
+/* Tablet (max-width: 1024px) */
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}
+
+/* Mobile (max-width: 768px) */
+@media (max-width: 768px) {
+  /* Fluid Grids & Padding */
+  .main-view {
+    padding: 24px 16px;
+    padding-bottom: 150px; /* Space for mini-player + bottom nav */
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .welcome-banner {
+    padding: 32px 24px;
+    border-radius: 20px;
+  }
+
+  .welcome-banner h1 {
+    font-size: 28px;
+  }
+
+  /* App Layout for Mobile: Stacked instead of Row */
+  .main-content {
+    flex-direction: column;
+    height: 100vh; /* Will take full height, overlays will position on top */
+  }
+
+  /* Transform Sidebar into Bottom Navigation */
+  .sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 70px;
+    min-width: auto;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 16px;
+    border-right: none;
+    border-top: 1px solid var(--border-subtle);
+    z-index: 100;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .sidebar-logo, .sidebar-playlists, .user-profile-badge, .sidebar-divider, .local-import-section {
+    display: none !important; /* Hide everything except the main menu */
+  }
+
+  .sidebar-menu {
+    flex-direction: row;
+    width: 100%;
+    justify-content: space-around;
+    margin: 0;
+    gap: 0;
+  }
+
+  .menu-item {
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    font-size: 10px;
+    justify-content: center;
+    border-radius: 8px;
+    width: auto;
+  }
+
+  .menu-item.active {
+    border-left: none;
+    border-bottom: 3px solid var(--accent-rose);
+    border-radius: 0;
+    padding-left: 8px;
+  }
+
+  /* Transform PlayerBar into Mini-Player */
+  .player-bar {
+    position: fixed;
+    bottom: 80px; /* Above bottom nav */
+    left: 12px;
+    width: calc(100vw - 24px);
+    height: 64px;
+    min-height: 64px;
+    border-radius: 12px;
+    padding: 0 16px;
+    z-index: 99;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    justify-content: space-between;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .player-art, .player-placeholder-art {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+  }
+
+  .player-track-info {
+    width: 65%;
+  }
+
+  .player-track-meta {
+    max-width: calc(100% - 50px);
+  }
+
+  .player-buttons {
+    gap: 12px;
+    width: auto;
+  }
+
+  .player-timeline, .player-extra-controls, .control-btn:not(.play-pause-btn):not([title="Next Track"]) {
+    display: none; /* Hide volume, timeline, and extra controls on mini-player */
+  }
+
+  .play-pause-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Table adjustments */
+  .track-album-cell {
+    display: none;
+  }
+}
+
+/* Dropdown Option Styles */
+.playlist-select option {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.modal-content {
+  background: rgba(30, 30, 30, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 30px;
+  border-radius: 20px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modal-content h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.modal-input:focus {
+  border-color: var(--accent-rose);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.modal-actions button {
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-primary {
+  background: var(--gradient-accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
 }

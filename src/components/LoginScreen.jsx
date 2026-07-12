@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HardDrive, Users, ArrowRight, AlertCircle, Music } from 'lucide-react';
+import { loginUser, signupUser } from '../utils/googleSheetsHelper';
 
 export default function LoginScreen({ onLoginSuccess }) {
   const [mode, setMode] = useState('select');
@@ -25,83 +26,49 @@ export default function LoginScreen({ onLoginSuccess }) {
 
     setLoading(true);
 
-    // Retrieve registered users database from localStorage
-    const localUsers = JSON.parse(localStorage.getItem('rosewood_users') || '{}');
-
-    if (isSignUp) {
-      // Sign Up Flow
-      if (password !== confirmPassword) {
-        setError('Passwords do not match.');
-        setLoading(false);
-        return;
-      }
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters.');
-        setLoading(false);
-        return;
-      }
-      if (localUsers[username.toLowerCase()]) {
-        setError('Username is already taken.');
-        setLoading(false);
-        return;
-      }
-
-      // Register new user
-      localUsers[username.toLowerCase()] = {
-        username,
-        password, // In a real app, this would be hashed on a server
-        createdAt: Date.now()
-      };
-      localStorage.setItem('rosewood_users', JSON.stringify(localUsers));
-
-      // Auto login after registration
-      setTimeout(() => {
-        onLoginSuccess({
-          mode: 'shared',
-          user: { displayName: username, email: `${username}@rosewoodaudio.local` },
-          username,
-          password
-        });
-        setLoading(false);
-      }, 1000);
-
-    } else {
-      // Sign In Flow
-      const matchedUser = localUsers[username.toLowerCase()];
-      
-      // Seed a default admin user if database is empty for testing
-      if (!matchedUser && username.toLowerCase() === 'admin' && password === 'admin123') {
-        localUsers['admin'] = { username: 'Admin', password: 'admin123' };
-        localStorage.setItem('rosewood_users', JSON.stringify(localUsers));
-        
-        setTimeout(() => {
-          onLoginSuccess({
-            mode: 'shared',
-            user: { displayName: 'Admin', email: 'admin@rosewoodaudio.local' },
-            username: 'Admin',
-            password: 'admin123'
-          });
+    try {
+      if (isSignUp) {
+        if (password !== confirmPassword) {
+          setError('Passwords do not match.');
           setLoading(false);
-        }, 1000);
-        return;
-      }
+          return;
+        }
+        if (password.length < 6) {
+          setError('Password must be at least 6 characters.');
+          setLoading(false);
+          return;
+        }
 
-      if (!matchedUser || matchedUser.password !== password) {
-        setError('Incorrect username or password.');
-        setLoading(false);
-        return;
-      }
+        const res = await signupUser(username.toLowerCase(), password);
+        if (!res) {
+          setError('Registration failed or username already taken.');
+          setLoading(false);
+          return;
+        }
 
-      // Success login
-      setTimeout(() => {
         onLoginSuccess({
           mode: 'shared',
-          user: { displayName: matchedUser.username, email: `${matchedUser.username}@rosewoodaudio.local` },
-          username: matchedUser.username,
-          password
+          user: { displayName: res.username },
+          username: res.username
         });
-        setLoading(false);
-      }, 1000);
+      } else {
+        const res = await loginUser(username.toLowerCase(), password);
+        if (!res) {
+          setError('Incorrect username or password.');
+          setLoading(false);
+          return;
+        }
+
+        onLoginSuccess({
+          mode: 'shared',
+          user: { displayName: res.username },
+          username: res.username
+        });
+      }
+    } catch (err) {
+      setError(err.message || 'Authentication error.');
+    } finally {
+      setLoading(false);
     }
   };
 

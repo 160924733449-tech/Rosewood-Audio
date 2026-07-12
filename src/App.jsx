@@ -6,12 +6,13 @@ import PlayerBar from './components/PlayerBar';
 import NowPlayingOverlay from './components/NowPlayingOverlay';
 
 import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, deletePlaylist } from './utils/db';
-import { recordPlayEvent, decayFatigue, getNextTrackAutoplay } from './utils/recommendationEngine';
-import { saveUserStateInSheet, getUserStateFromSheet, initDatabaseSheet } from './utils/googleSheetsHelper';
-import { logoutGoogle } from './utils/googleAuth';
+import { recordPlayEvent, decayFatigue, getNextTrackAutoplay, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
+import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, deletePlaylistFromSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
+import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
 import { fetchSharedLibraryTracks, getStreamUrlForTrack } from './utils/sharedLibraryHelper';
 import { parseMetadata } from './utils/metadataHelper';
 import { getStreamUrl } from './utils/googleDriveHelper';
+import { trackEvent } from './utils/tracker';
 
 function getAudioDuration(file) {
   return new Promise((resolve) => {
@@ -34,9 +35,8 @@ function getAudioDuration(file) {
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [userMode, setUserMode] = useState(null); // 'local', 'shared', 'google'
+  const [userMode, setUserMode] = useState(null); // 'local', 'shared'
   const [userProfile, setUserProfile] = useState(null);
-  const [googleSheetId, setGoogleSheetId] = useState('');
   const [loadingTrack, setLoadingTrack] = useState(false);
 
   const [tracks, setTracks] = useState([]);
@@ -57,13 +57,16 @@ export default function App() {
   const [isNowPlayingExpanded, setIsNowPlayingExpanded] = useState(false);
 
 
-  const audioRef = useRef(null);
+  const audioRef = useRef(null); // Keep this for legacy references that still use it for non-playback things
+  const audioElementsRef = useRef([]); // [new Audio(), new Audio()]
+  const activeIndexRef = useRef(0);
   const currentTrackRef = useRef(null);
-  const preloadAudioRef = useRef(null);
   const preloadedUrlsRef = useRef({});
   const loadingTrackIdRef = useRef(null);
   const consecutiveSkipsRef = useRef(0); // Track consecutive auto-skips to prevent infinite loops
   const handlersRef = useRef({}); // Store latest handlers for event listeners
+  const upcomingTracksRef = useRef([]); // Store precalculated upcoming tracks
+  const abortControllersRef = useRef(new Map()); // Store abort controllers for in-flight requests
 
   // Keep currentTrackRef in sync
   useEffect(() => {
@@ -72,29 +75,21 @@ export default function App() {
 
   const determineNextTrack = async (currTrack) => {
     if (tracks.length === 0) return null;
-    let nextTrack = null;
-
-    if (shuffle) {
-      nextTrack = await getNextTrackAutoplay(tracks, currTrack);
-    } else {
-      const queue = activeQueue.length > 0 ? activeQueue : tracks;
-      const currentIndex = queue.findIndex(t => t.id === (currTrack?.id || ''));
-      if (currentIndex !== -1 && currentIndex < queue.length - 1) {
-        nextTrack = queue[currentIndex + 1];
-      } else {
-        nextTrack = queue[0]; // loop back to first
-      }
-    }
-    return nextTrack;
+    return await getNextTrackAutoplay(tracks, currTrack);
   };
 
   const determineNextTracks = async (currTrack, count = 3) => {
     if (tracks.length === 0) return [];
+    
+    // Batch fetch state once to avoid N+1 queries during preloading
+    const history = await getPlayHistory();
+    const affinities = await getAllAffinities();
+    
     let upcoming = [];
     let current = currTrack;
     
     for (let i = 0; i < count; i++) {
-      const next = await determineNextTrack(current);
+      const next = getNextTrackAutoplayWithState(tracks, current, history, affinities);
       if (!next || upcoming.some(t => t.id === next.id)) break;
       upcoming.push(next);
       current = next;
@@ -103,9 +98,12 @@ export default function App() {
   };
 
   const preloadTrack = async (track) => {
-    if (!track || !preloadAudioRef.current) return;
+    if (!track || audioElementsRef.current.length < 2) return;
 
-    if (preloadAudioRef.current.getAttribute('data-track-id') === track.id) {
+    // Use the inactive audio element to buffer the next track
+    const inactiveAudio = audioElementsRef.current[1 - activeIndexRef.current];
+
+    if (inactiveAudio.getAttribute('data-track-id') === track.id) {
       return;
     }
 
@@ -119,31 +117,45 @@ export default function App() {
         if (preloadedUrlsRef.current[finalTrack.id]) {
           preloadUrl = preloadedUrlsRef.current[finalTrack.id];
         } else {
-          const streamResult = await getStreamUrlForTrack(finalTrack);
+          // Cancel any existing fetch for this track
+          if (abortControllersRef.current.has(finalTrack.id)) {
+            abortControllersRef.current.get(finalTrack.id).abort();
+          }
+          const abortController = new AbortController();
+          abortControllersRef.current.set(finalTrack.id, abortController);
+
+          const streamResult = await getStreamUrlForTrack(finalTrack, 1, abortController.signal);
+          abortControllersRef.current.delete(finalTrack.id);
           if (streamResult && streamResult.blobUrl) {
             preloadedUrlsRef.current[finalTrack.id] = streamResult.blobUrl;
             preloadUrl = streamResult.blobUrl;
             
-            // Extract embedded ID3 tags from the downloaded blob!
+            // Extract embedded ID3 tags from the downloaded blob in the background
             if (streamResult.blob) {
-              try {
-                const tags = await parseMetadata(streamResult.blob);
-                if (tags && (tags.artwork || tags.title !== finalTrack.title)) {
-                  finalTrack = {
-                    ...finalTrack,
-                    artwork: tags.artwork || finalTrack.artwork,
-                    title: tags.title || finalTrack.title,
-                    artist: tags.artist || finalTrack.artist,
-                    album: tags.album || finalTrack.album,
-                    genre: tags.genre || finalTrack.genre,
-                    year: tags.year || finalTrack.year
-                  };
-                  setTracks(prev => prev.map(t => t.id === finalTrack.id ? finalTrack : t));
-                  await saveTrack(finalTrack);
+              setTimeout(async () => {
+                try {
+                  const tags = await parseMetadata(streamResult.blob);
+                  if (tags && (tags.artwork || tags.title !== finalTrack.title)) {
+                    const updatedTrack = {
+                      ...finalTrack,
+                      localChecked: true,
+                      artwork: tags.artwork || finalTrack.artwork,
+                      title: tags.title || finalTrack.title,
+                      artist: tags.artist || finalTrack.artist,
+                      album: tags.album || finalTrack.album,
+                      genre: tags.genre || finalTrack.genre,
+                      year: tags.year || finalTrack.year
+                    };
+                    setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
+                    await saveTrack(updatedTrack);
+                    
+                    // Note: Since this is async, we shouldn't overwrite finalTrack directly here 
+                    // because it might have already been processed in the outer scope.
+                  }
+                } catch (e) {
+                  console.warn('[Preloader] ID3 extraction error:', e);
                 }
-              } catch (e) {
-                console.warn('[Preloader] ID3 extraction error:', e);
-              }
+              }, 100);
             }
           }
         }
@@ -167,11 +179,11 @@ export default function App() {
 
       if (preloadUrl) {
         // Only set the HTMLAudioElement src for the IMMEDIATE next track to ensure gapless buffering
-        if (preloadAudioRef.current.getAttribute('data-track-id') !== finalTrack.id && !preloadAudioRef.current.src) {
-          preloadAudioRef.current.setAttribute('data-track-id', finalTrack.id);
-          preloadAudioRef.current.src = preloadUrl;
-          preloadAudioRef.current.preload = 'auto';
-          preloadAudioRef.current.load();
+        if (inactiveAudio.getAttribute('data-track-id') !== finalTrack.id && !inactiveAudio.src) {
+          inactiveAudio.setAttribute('data-track-id', finalTrack.id);
+          inactiveAudio.src = preloadUrl;
+          inactiveAudio.preload = 'auto';
+          inactiveAudio.load();
           console.log(`[Preloader] Buffering immediate next track: ${finalTrack.title}`);
         } else {
           console.log(`[Preloader] Cached track blob in background: ${finalTrack.title}`);
@@ -192,17 +204,36 @@ export default function App() {
       await new Promise(resolve => setTimeout(resolve, 3000));
       if (!isSubscribed) return;
 
-      const upcomingTracks = await determineNextTracks(currentTrack, 3);
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      const isSlowNetwork = connection && (connection.saveData || ['slow-2g', '2g', '3g'].includes(connection.effectiveType));
+      const preloadCount = isSlowNetwork ? 1 : 3;
+
+      const upcomingTracks = await determineNextTracks(currentTrack, preloadCount);
       if (!isSubscribed) return;
       
-      // Clear out preloaded URLs for tracks that are no longer in our upcoming window
-      // (This prevents a massive memory leak of Blobs)
+      upcomingTracksRef.current = [...upcomingTracks];
+
+      // GC: Clear out preloaded URLs and pending fetches for tracks that are no longer in our upcoming window
+      // (This prevents a massive memory leak of Blobs and network bandwidth)
       const upcomingIds = new Set(upcomingTracks.map(t => t.id));
       upcomingIds.add(currentTrack.id); // keep current track alive
       
+      // 1. Cancel stale fetches
+      for (const [id, controller] of abortControllersRef.current.entries()) {
+        if (!upcomingIds.has(id)) {
+          controller.abort();
+          abortControllersRef.current.delete(id);
+        }
+      }
+
+      // 2. Revoke stale blobs
       for (const [id, url] of Object.entries(preloadedUrlsRef.current)) {
         if (!upcomingIds.has(id)) {
-          if (url.startsWith('blob:') && audioRef.current?.src !== url) {
+          // Check both audio elements before revoking
+          const isActiveSrc = audioElementsRef.current.some(el => el && el.src === url);
+          // Keep old fallback for audioRef if needed
+          const isLegacyActive = audioRef.current?.src === url;
+          if (url.startsWith('blob:') && !isActiveSrc && !isLegacyActive) {
             URL.revokeObjectURL(url);
           }
           delete preloadedUrlsRef.current[id];
@@ -219,9 +250,12 @@ export default function App() {
     };
 
     // Reset the preload audio ref so the first track in the new upcoming queue takes priority
-    if (preloadAudioRef.current) {
-       preloadAudioRef.current.src = '';
-       preloadAudioRef.current.removeAttribute('data-track-id');
+    if (audioElementsRef.current.length === 2) {
+      const inactiveAudio = audioElementsRef.current[1 - activeIndexRef.current];
+      if (inactiveAudio) {
+         inactiveAudio.src = '';
+         inactiveAudio.removeAttribute('data-track-id');
+      }
     }
 
     runPreload();
@@ -238,11 +272,15 @@ export default function App() {
     if (tracks.length === 0 || isPlaying) return;
 
     let isSubscribed = true;
-    const queue = tracks.filter(t => !t.localChecked);
+    const queue = tracks.filter(t => !t.localChecked && t.source === 'local');
 
     if (queue.length === 0) return;
 
     const processQueue = async () => {
+      // For local files, we can process them quickly without network constraints, 
+      // but we still add a small delay to avoid freezing the UI thread.
+      const extractionDelay = 1000;
+
       for (const track of queue) {
         if (!isSubscribed || isPlaying) break;
         
@@ -250,25 +288,7 @@ export default function App() {
         let updatedTrack = { ...track, localChecked: true };
 
         try {
-          if (track.source === 'shared' && track.driveFileId) {
-            const streamResult = await getStreamUrlForTrack(track);
-            if (streamResult && streamResult.blob && isSubscribed && !isPlaying) {
-              const tags = await parseMetadata(streamResult.blob);
-              if (tags && (tags.artwork || tags.title !== track.title)) {
-                tagsExtracted = true;
-                updatedTrack.artwork = tags.artwork || track.artwork;
-                updatedTrack.title = tags.title || track.title;
-                updatedTrack.artist = tags.artist || track.artist;
-                updatedTrack.album = tags.album || track.album;
-                updatedTrack.genre = tags.genre || track.genre;
-                updatedTrack.year = tags.year || track.year;
-              }
-              // CRITICAL: Immediately release the blob to save memory since we aren't caching it for playback yet!
-              if (streamResult.blobUrl) {
-                URL.revokeObjectURL(streamResult.blobUrl);
-              }
-            }
-          } else if (track.source === 'local' && track.fileHandle) {
+          if (track.source === 'local' && track.fileHandle) {
              const hasPermission = await track.fileHandle.queryPermission({ mode: 'read' }) === 'granted';
              if (hasPermission) {
                const fileObj = await track.fileHandle.getFile();
@@ -300,7 +320,7 @@ export default function App() {
         await saveTrack(updatedTrack);
 
         // Slow down to protect bandwidth
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, extractionDelay));
       }
     };
 
@@ -316,18 +336,27 @@ export default function App() {
   }, [tracks, isPlaying]);
   // Initialize Audio
   useEffect(() => {
-    audioRef.current = new Audio();
-    audioRef.current.volume = volume;
+    audioElementsRef.current = [new Audio(), new Audio()];
+    
+    // Set initial volumes
+    audioElementsRef.current[0].volume = volume;
+    audioElementsRef.current[1].volume = 0; // Inactive one should be silent during preload
+    
+    // We still keep audioRef pointing to the active one for legacy support in other hooks (like keyboard shortcuts)
+    audioRef.current = audioElementsRef.current[0];
 
-    preloadAudioRef.current = new Audio();
-    preloadAudioRef.current.volume = 0; // Preload silently
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audioRef.current.currentTime);
+    const handleTimeUpdate = (e) => {
+      // Only update UI if the event comes from the currently active audio element
+      if (e.target === audioElementsRef.current[activeIndexRef.current]) {
+        setCurrentTime(e.target.currentTime);
+      }
     };
 
-    const handleLoadedMetadata = () => {
-      const trackDuration = audioRef.current.duration;
+    const handleLoadedMetadata = (e) => {
+      // Only process if it's the active element
+      if (e.target !== audioElementsRef.current[activeIndexRef.current]) return;
+
+      const trackDuration = e.target.duration;
       setDuration(trackDuration);
 
       // Dynamically update the track's duration in the loaded tracks list
@@ -343,13 +372,15 @@ export default function App() {
       }
     };
 
-    const handleEnded = () => {
+    const handleEnded = (e) => {
+      if (e.target !== audioElementsRef.current[activeIndexRef.current]) return;
       if (handlersRef.current.handleTrackEnd) {
         handlersRef.current.handleTrackEnd();
       }
     };
 
     const handleError = (e) => {
+      if (e.target !== audioElementsRef.current[activeIndexRef.current]) return;
       const audio = e.target;
       const err = audio.error;
       // MEDIA_ERR_ABORTED (1) is expected when switching tracks rapidly — don't auto-skip for it
@@ -369,47 +400,35 @@ export default function App() {
         delete preloadedUrlsRef.current[currentTrackRef.current.id];
       }
 
-      // Auto-skip to the next track after a brief delay so the user isn't stuck.
-      // Stop after 5 consecutive failures to prevent infinite loops.
-      consecutiveSkipsRef.current += 1;
-      if (consecutiveSkipsRef.current > 5) {
-        console.warn('[Auto-Skip] Stopped after 5 consecutive failures. Some tracks in the library may be unavailable.');
-        consecutiveSkipsRef.current = 0;
-        return;
-      }
-
-      setTimeout(() => {
-        if (currentTrackRef.current && handlersRef.current.handleNextTrack) {
-          console.log(`[Auto-Skip] Skipping failed track (${consecutiveSkipsRef.current}/5): ${trackName}`);
-          handlersRef.current.handleNextTrack();
-        }
-      }, 300);
+      console.warn(`[Playback Error] Failed to play track: ${trackName}. Audio playback stopped.`);
     };
 
-    audioRef.current.addEventListener('timeupdate', handleTimeUpdate);
-    audioRef.current.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audioRef.current.addEventListener('ended', handleEnded);
-    audioRef.current.addEventListener('error', handleError);
+    audioElementsRef.current.forEach(audio => {
+      audio.addEventListener('timeupdate', handleTimeUpdate);
+      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.addEventListener('ended', handleEnded);
+      audio.addEventListener('error', handleError);
+    });
 
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.removeEventListener('timeupdate', handleTimeUpdate);
-        audioRef.current.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        audioRef.current.removeEventListener('ended', handleEnded);
-        audioRef.current.removeEventListener('error', handleError);
-      }
-      if (preloadAudioRef.current) {
-        preloadAudioRef.current.pause();
-        preloadAudioRef.current.src = '';
-      }
+      audioElementsRef.current.forEach(audio => {
+        if (audio) {
+          audio.pause();
+          audio.src = '';
+          audio.removeEventListener('timeupdate', handleTimeUpdate);
+          audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+          audio.removeEventListener('ended', handleEnded);
+          audio.removeEventListener('error', handleError);
+        }
+      });
     };
   }, []);
 
   // Update volume
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
+    if (audioElementsRef.current.length === 2) {
+      // Only the active player gets full volume
+      audioElementsRef.current[activeIndexRef.current].volume = volume;
       localStorage.setItem('aura_volume', volume);
     }
   }, [volume]);
@@ -443,6 +462,12 @@ export default function App() {
     setUserProfile(authData.user);
     setLoggedIn(true);
 
+    localStorage.setItem('aura_session', JSON.stringify({
+      mode: authData.mode,
+      user: authData.user,
+      username: authData.username || authData.user?.displayName
+    }));
+
     if (authData.mode === 'shared') {
       const sharedTracks = await fetchSharedLibraryTracks();
       const existingTracks = await getAllTracks();
@@ -456,20 +481,45 @@ export default function App() {
         return fetched;
       });
       setTracks(mergedTracks);
-    }
 
-    if (authData.mode === 'google') {
-      setGoogleSheetId(authData.sheetId);
-      if (authData.sheetId) {
-        await initDatabaseSheet(authData.sheetId);
-        // Fetch last played state
-        const state = await getUserStateFromSheet(authData.sheetId, authData.user.sub || authData.user.email);
-        if (state) {
-          console.log('Loaded user state from sheet:', state);
+      const username = authData.user.displayName;
+      
+      // Fetch cloud data from our new backend
+      const state = await getUserStateFromSheet(username);
+      if (state && state.trackId && mergedTracks.length > 0) {
+        const track = mergedTracks.find(t => t.id === state.trackId);
+        if (track) {
+          setTrackSilent(track, state.positionSec);
+        }
+      }
+      
+      const cloudPlaylists = await getAllPlaylistsFromSheet(username);
+      if (cloudPlaylists && cloudPlaylists.length > 0) {
+        setPlaylists(cloudPlaylists);
+        for (const p of cloudPlaylists) {
+          await savePlaylist(p);
+        }
+      }
+
+      const cloudAffinities = await getAllAffinitiesFromSheet(username);
+      if (cloudAffinities && cloudAffinities.length > 0) {
+        for (const aff of cloudAffinities) {
+          await saveAffinity(aff.key, aff.score);
         }
       }
     }
   };
+
+  useEffect(() => {
+    const savedSession = localStorage.getItem('aura_session');
+    if (savedSession) {
+      try {
+        const authData = JSON.parse(savedSession);
+        // We defer handleLoginSuccess execution to not block initial render excessively
+        setTimeout(() => handleLoginSuccess(authData), 0);
+      } catch(e) {}
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTracksImported = async (importedTracks) => {
     const existingTracks = await getAllTracks();
@@ -527,11 +577,19 @@ export default function App() {
     setIsPlaying(false);
   };
 
-  const handlePlayTrack = async (track, queue = []) => {
+  const handlePlayTrack = async (track, queue = [], startPosition = 0) => {
     if (!audioRef.current) return;
+
+    upcomingTracksRef.current = []; // Clear cached upcoming tracks
 
     if (currentTrack) {
       setPlayedHistory(prev => [...prev, currentTrack]);
+    }
+
+    // CRITICAL FIX: Immediately pause the current audio so it doesn't keep playing 
+    // while we wait for the new track's network fetch to complete.
+    if (audioElementsRef.current.length === 2) {
+      audioElementsRef.current[activeIndexRef.current].pause();
     }
 
     // 1. Instantly set track to trigger UI update and glide-up animation
@@ -540,16 +598,23 @@ export default function App() {
     setIsPlaying(false);
     loadingTrackIdRef.current = track.id;
 
+    trackEvent('play', track);
+
     let finalTrack = track;
 
     // 3. Resolve the audio stream URL in the background
     let playUrl = '';
-    if (preloadedUrlsRef.current[track.id]) {
+    let isPreloaded = false;
+    
+    // Check if the inactive audio element already has this track fully buffered
+    const inactiveAudio = audioElementsRef.current[1 - activeIndexRef.current];
+    if (inactiveAudio && inactiveAudio.getAttribute('data-track-id') === track.id && inactiveAudio.src) {
+      console.log(`[Playback] Gapless transition! Swapping to buffered track: ${track.title}`);
+      playUrl = inactiveAudio.src;
+      isPreloaded = true;
+    } else if (preloadedUrlsRef.current[track.id]) {
       console.log(`[Playback] Playing preloaded URL instantly: ${track.title}`);
       playUrl = preloadedUrlsRef.current[track.id];
-    } else if (preloadAudioRef.current && preloadAudioRef.current.getAttribute('data-track-id') === track.id && preloadAudioRef.current.src) {
-      console.log(`[Playback] Playing buffered preload track: ${track.title}`);
-      playUrl = preloadAudioRef.current.src;
     }
 
     if (!playUrl) {
@@ -561,49 +626,44 @@ export default function App() {
           if (!streamResult || !streamResult.blobUrl) {
             console.error('[Playback] Could not load stream for track:', track.name, '— auto-skipping.');
             setLoadingTrack(false);
-            // Increment consecutive skip counter and check limit
+            // Increment consecutive skip counter and check limit (but don't auto-skip anymore)
             consecutiveSkipsRef.current += 1;
-            if (consecutiveSkipsRef.current > 5) {
-              console.warn('[Playback] Stopped auto-skip after 5 consecutive stream failures.');
-              consecutiveSkipsRef.current = 0;
-              return;
-            }
-            const skipToTrack = await determineNextTrack(track);
-            if (skipToTrack && skipToTrack.id !== track.id) {
-              console.log(`[Auto-Skip] Skipping from "${track.name}" → "${skipToTrack.name}" (${consecutiveSkipsRef.current}/5)`);
-              handlePlayTrack(skipToTrack, queue.length > 0 ? queue : tracks);
-            } else {
-              console.warn('[Auto-Skip] No valid next track found to skip to.');
-              consecutiveSkipsRef.current = 0;
-            }
+            console.warn('[Playback Error] Stream failed to load. Audio playback stopped.');
             return;
           }
           
           preloadedUrlsRef.current[track.id] = streamResult.blobUrl;
           playUrl = streamResult.blobUrl;
 
-          // Extract ID3 tags from blob!
+          // Extract ID3 tags from blob in the background so we don't block playback!
           if (streamResult.blob && !track.localChecked) { // Using localChecked as a general flag that tags were extracted
-            try {
-              const tags = await parseMetadata(streamResult.blob);
-              if (tags && (tags.artwork || tags.title !== track.title)) {
-                finalTrack = {
-                  ...finalTrack,
-                  localChecked: true, // mark as checked
-                  artwork: tags.artwork || finalTrack.artwork,
-                  title: tags.title || finalTrack.title,
-                  artist: tags.artist || finalTrack.artist,
-                  album: tags.album || finalTrack.album,
-                  genre: tags.genre || finalTrack.genre,
-                  year: tags.year || finalTrack.year
-                };
-                setCurrentTrack(finalTrack);
-                setTracks(prev => prev.map(t => t.id === finalTrack.id ? finalTrack : t));
-                await saveTrack(finalTrack);
+            setTimeout(async () => {
+              try {
+                const tags = await parseMetadata(streamResult.blob);
+                if (tags && (tags.artwork || tags.title !== track.title)) {
+                  const updatedTrack = {
+                    ...finalTrack, // finalTrack is captured from outer scope
+                    localChecked: true, // mark as checked
+                    artwork: tags.artwork || finalTrack.artwork,
+                    title: tags.title || finalTrack.title,
+                    artist: tags.artist || finalTrack.artist,
+                    album: tags.album || finalTrack.album,
+                    genre: tags.genre || finalTrack.genre,
+                    year: tags.year || finalTrack.year
+                  };
+                  
+                  // Only update if we're still playing this track!
+                  if (currentTrackRef.current?.id === updatedTrack.id) {
+                    setCurrentTrack(updatedTrack);
+                  }
+                  
+                  setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
+                  await saveTrack(updatedTrack);
+                }
+              } catch (e) {
+                console.warn('[Playback] ID3 extraction error:', e);
               }
-            } catch (e) {
-              console.warn('[Playback] ID3 extraction error:', e);
-            }
+            }, 100);
           }
           
         } else if (track.source === 'local') {
@@ -638,75 +698,81 @@ export default function App() {
     // Safeguard race condition
     if (loadingTrackIdRef.current !== track.id) return;
 
-    // Revoke old object URL safely
-    if (audioRef.current.src && audioRef.current.src.startsWith('blob:') && audioRef.current.src !== playUrl) {
-      const isCached = Object.values(preloadedUrlsRef.current).includes(audioRef.current.src);
-      if (!isCached) {
-        URL.revokeObjectURL(audioRef.current.src);
+    // We are proceeding with playback. Let's swap the active index.
+    const oldActiveAudio = audioElementsRef.current[activeIndexRef.current];
+    activeIndexRef.current = 1 - activeIndexRef.current;
+    const newActiveAudio = audioElementsRef.current[activeIndexRef.current];
+    
+    // Update legacy ref
+    audioRef.current = newActiveAudio;
+
+    // Clean up old audio element
+    oldActiveAudio.pause();
+    
+    // Revoke old object URL safely if it's not cached
+    if (oldActiveAudio.src && oldActiveAudio.src.startsWith('blob:') && oldActiveAudio.src !== playUrl) {
+      const isCached = Object.values(preloadedUrlsRef.current).includes(oldActiveAudio.src);
+      // We also check if the new element is using it
+      if (!isCached && newActiveAudio.src !== oldActiveAudio.src) {
+        URL.revokeObjectURL(oldActiveAudio.src);
       }
     }
+    
+    oldActiveAudio.removeAttribute('src');
+    oldActiveAudio.removeAttribute('data-track-id');
+    oldActiveAudio.load();
 
-    // Reset the audio element before loading new source.
-    // This clears any stale error state from a previously failed track,
-    // which is the root cause of "first few songs don't play" — the Audio element
-    // can get stuck in an error state that blocks subsequent .play() calls.
-    audioRef.current.pause();
-    audioRef.current.removeAttribute('src');
-    audioRef.current.load();
+    if (!isPreloaded) {
+      // If we didn't gapless-swap, we need to set up the new active element from scratch
+      newActiveAudio.pause();
+      newActiveAudio.removeAttribute('src');
+      newActiveAudio.load();
+      newActiveAudio.src = playUrl;
+      newActiveAudio.setAttribute('data-track-id', track.id);
+    }
+    
+    // Apply full volume to new active audio
+    newActiveAudio.volume = volume;
+    
+    if (startPosition > 0) {
+      newActiveAudio.currentTime = startPosition;
+      setCurrentTime(startPosition);
+    } else if (isPreloaded) {
+      // For gapless, make sure it starts perfectly at 0 if we didn't seek
+      newActiveAudio.currentTime = 0;
+      setCurrentTime(0);
+    }
 
-    // Now set the new source and play
-    audioRef.current.src = playUrl;
-    audioRef.current.load();
-
-    // Use canplaythrough to ensure the browser has enough buffered data before playing.
-    // This avoids premature play() calls that reject with AbortError or NotSupportedError.
-    const playWhenReady = () => {
-      if (loadingTrackIdRef.current !== track.id) return;
-      audioRef.current.removeEventListener('canplaythrough', playWhenReady);
-      audioRef.current.play()
-        .then(() => {
-          if (loadingTrackIdRef.current === track.id) {
-            setIsPlaying(true);
-            // Reset consecutive skip counter — this track loaded successfully
-            consecutiveSkipsRef.current = 0;
-          }
-        })
-        .catch(err => {
-          console.error('[Playback] play() rejected:', err);
-          // Don't auto-skip here — the error handler on the audio element will do it
-        });
-    };
-    audioRef.current.addEventListener('canplaythrough', playWhenReady, { once: true });
-
-    // Fallback: if canplaythrough doesn't fire within 10s (e.g. for very large files),
-    // attempt to play anyway. The error handler will catch genuine failures.
-    setTimeout(() => {
-      if (loadingTrackIdRef.current === track.id && !isPlaying) {
-        audioRef.current.removeEventListener('canplaythrough', playWhenReady);
-        audioRef.current.play()
-          .then(() => {
-            if (loadingTrackIdRef.current === track.id) {
-              setIsPlaying(true);
-            }
-          })
-          .catch(() => {}); // error handler will deal with it
-      }
-    }, 10000);
+    // Call play() immediately instead of waiting for canplaythrough.
+    newActiveAudio.play()
+      .then(() => {
+        if (loadingTrackIdRef.current === track.id) {
+          setIsPlaying(true);
+          // Reset consecutive skip counter — this track loaded successfully
+          consecutiveSkipsRef.current = 0;
+        }
+      })
+      .catch(err => {
+        console.error('[Playback] play() rejected:', err);
+        // Don't auto-skip here — the error handler on the audio element will do it
+      });
 
     saveStatePersistence(track.id, 0);
-
-    // Wait for the iTunes metadata promise to fully apply its updates
-    await metadataPromise;
   };
 
   const handlePlayPauseToggle = () => {
-    if (!audioRef.current || !currentTrack) return;
-
+    if (!currentTrack) return;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
       saveStatePersistence(currentTrack.id, audioRef.current.currentTime);
     } else {
+      // If the audio source was never loaded (e.g., restored from silent state on login)
+      if (!audioRef.current.src || audioRef.current.src === window.location.href) {
+        handlePlayTrack(currentTrack, activeQueue, currentTime);
+        return;
+      }
+
       audioRef.current.play()
         .then(() => setIsPlaying(true))
         .catch(err => console.error('Playback failed:', err));
@@ -717,15 +783,8 @@ export default function App() {
     if (userMode === 'local') {
       localStorage.setItem('aura_local_last_played', trackId);
       localStorage.setItem('aura_local_last_pos', position);
-    } else if (userMode === 'google' && googleSheetId && userProfile) {
-      saveUserStateInSheet(
-        googleSheetId,
-        userProfile.sub || userProfile.email,
-        userProfile.email,
-        userProfile.displayName,
-        trackId,
-        position
-      );
+    } else if (userMode === 'shared' && userProfile?.displayName) {
+      saveUserStateInSheet(userProfile.displayName, trackId, position);
     }
   };
 
@@ -733,8 +792,15 @@ export default function App() {
       // NOTE: Uses state variables (currentTrack, repeat, autoNext, etc)
       // Must be called via handlersRef from the audio ended event to avoid stale closures.
     if (currentTrack) {
-      await recordPlayEvent(currentTrack, true);
-      await decayFatigue();
+      const syncConfig = {
+        mode: userMode,
+        userId: userProfile?.displayName
+      };
+      await recordPlayEvent(currentTrack, true, syncConfig);
+      if (userMode === 'shared' && userProfile) {
+        appendHistoryToSheet(userProfile.displayName, currentTrack.id, currentTrack.title, currentTrack.duration, true);
+      }
+      await decayFatigue(syncConfig);
     }
 
     if (repeat) {
@@ -752,10 +818,23 @@ export default function App() {
     if (tracks.length === 0) return;
 
     if (currentTrack && currentTime < 30 && isPlaying) {
-      await recordPlayEvent(currentTrack, false);
+      const syncConfig = {
+        mode: userMode,
+        userId: userProfile?.displayName
+      };
+      await recordPlayEvent(currentTrack, false, syncConfig);
+      if (userMode === 'shared' && userProfile) {
+        appendHistoryToSheet(userProfile.displayName, currentTrack.id, currentTrack.title, currentTrack.duration, false);
+      }
+      trackEvent('skip', currentTrack);
     }
 
-    const nextTrack = await determineNextTrack(currentTrack);
+    let nextTrack = null;
+    if (upcomingTracksRef.current && upcomingTracksRef.current.length > 0) {
+      nextTrack = upcomingTracksRef.current.shift();
+    } else {
+      nextTrack = await determineNextTrack(currentTrack);
+    }
 
     if (nextTrack) {
       handlePlayTrack(nextTrack, activeQueue);
@@ -766,9 +845,99 @@ export default function App() {
   useEffect(() => {
     handlersRef.current = {
       handleTrackEnd,
-      handleNextTrack
+      handleNextTrack,
+      handlePrevTrack,
+      handlePlayPauseToggle
     };
   });
+
+  // Media Session API for hardware media keys
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (handlersRef.current.handlePlayPauseToggle) handlersRef.current.handlePlayPauseToggle();
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (handlersRef.current.handlePlayPauseToggle) handlersRef.current.handlePlayPauseToggle();
+      });
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        if (handlersRef.current.handlePrevTrack) handlersRef.current.handlePrevTrack();
+      });
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        if (handlersRef.current.handleNextTrack) handlersRef.current.handleNextTrack();
+      });
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const skipTime = details.seekOffset || 10;
+        if (audioRef.current) {
+           audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - skipTime);
+           setCurrentTime(audioRef.current.currentTime);
+        }
+      });
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const skipTime = details.seekOffset || 10;
+        if (audioRef.current) {
+           audioRef.current.currentTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + skipTime);
+           setCurrentTime(audioRef.current.currentTime);
+        }
+      });
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (audioRef.current) {
+          audioRef.current.currentTime = details.seekTime;
+          setCurrentTime(details.seekTime);
+        }
+      });
+    }
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't trigger if user is typing in an input or textarea
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+        return;
+      }
+      
+      switch(e.code) {
+        case 'Space':
+          e.preventDefault();
+          if (handlersRef.current.handlePlayPauseToggle) handlersRef.current.handlePlayPauseToggle();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (handlersRef.current.handleNextTrack) handlersRef.current.handleNextTrack();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (handlersRef.current.handlePrevTrack) handlersRef.current.handlePrevTrack();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setVolume(prev => Math.min(1, prev + 0.1));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setVolume(prev => Math.max(0, prev - 0.1));
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Update Media Session metadata when track changes
+  useEffect(() => {
+    if ('mediaSession' in navigator && currentTrack) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title || currentTrack.name || 'Unknown Track',
+        artist: currentTrack.artist || 'Unknown Artist',
+        album: currentTrack.album || 'Unknown Album',
+        artwork: currentTrack.artwork ? [
+          { src: currentTrack.artwork, sizes: '512x512' }
+        ] : []
+      });
+    }
+  }, [currentTrack]);
 
   const handlePrevTrack = () => {
     if (!audioRef.current) return;
@@ -807,8 +976,11 @@ export default function App() {
     };
     const updated = [...playlists, newPlaylist];
     setPlaylists(updated);
-    if (userMode === 'local') {
+    if (userMode === 'local' || userMode === 'shared') {
       await savePlaylist(newPlaylist);
+      if (userMode === 'shared' && userProfile) {
+        savePlaylistToSheet(userProfile.displayName, newPlaylist.id, newPlaylist.name, newPlaylist.tracks);
+      }
     }
   };
 
@@ -816,8 +988,11 @@ export default function App() {
     const updated = playlists.map(pl => {
       if (pl.id === playlistId && !pl.tracks.includes(trackId)) {
         const up = { ...pl, tracks: [...pl.tracks, trackId] };
-        if (userMode === 'local') {
+        if (userMode === 'local' || userMode === 'google') {
           savePlaylist(up);
+          if (userMode === 'google' && googleSheetId && userProfile) {
+            savePlaylistToSheet(googleSheetId, userProfile.sub || userProfile.email, up.id, up.name, up.tracks);
+          }
         }
         return up;
       }
@@ -831,7 +1006,7 @@ export default function App() {
       audioRef.current.pause();
       setIsPlaying(false);
     }
-    logoutGoogle();
+    localStorage.removeItem('aura_session');
     setLoggedIn(false);
     setUserMode(null);
     setUserProfile(null);
@@ -869,10 +1044,12 @@ export default function App() {
           onAddToPlaylist={handleAddToPlaylist}
           currentTrack={currentTrack}
           userProfile={userProfile}
+          setCurrentTab={setCurrentTab}
         />
       </div>
       <PlayerBar
         currentTrack={currentTrack}
+        loadingTrack={loadingTrack}
         isPlaying={isPlaying}
         onPlayPauseToggle={handlePlayPauseToggle}
         onNext={handleNextTrack}

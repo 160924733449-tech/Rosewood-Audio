@@ -1,4 +1,6 @@
-import { getCachedToken } from './googleAuth';
+function getCachedToken() {
+  return null; // Google Auth has been removed
+}
 
 /**
  * Searches for a folder by name in the user's Drive.

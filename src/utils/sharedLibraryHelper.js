@@ -128,7 +128,7 @@ function base64ToUint8Array(base64) {
  * Returns null quickly for files the Apps Script can't serve (e.g., 0-byte / unindexed files)
  * so the caller can auto-skip to the next track without long delays.
  */
-export async function getStreamUrlForTrack(track, retries = 1) {
+export async function getStreamUrlForTrack(track, retries = 1, abortSignal = null) {
   if (!track.driveFileId) {
     return { blobUrl: track.url, blob: null };
   }
@@ -137,7 +137,10 @@ export async function getStreamUrlForTrack(track, retries = 1) {
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(streamUrl);
+      const fetchOpts = {};
+      if (abortSignal) fetchOpts.signal = abortSignal;
+
+      const response = await fetch(streamUrl, fetchOpts);
       if (!response.ok) {
         console.error(`[Stream] Fetch failed (attempt ${attempt + 1}):`, response.status, response.statusText);
         if (attempt < retries) {
@@ -192,6 +195,10 @@ export async function getStreamUrlForTrack(track, retries = 1) {
       return { blobUrl, blob };
 
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log(`[Stream] Fetch aborted for track: ${track.name}`);
+        return null;
+      }
       console.error(`[Stream] Error on attempt ${attempt + 1} for "${track.name}":`, err);
       if (attempt < retries) {
         await new Promise(r => setTimeout(r, 800));
