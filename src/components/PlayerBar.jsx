@@ -112,6 +112,22 @@ export default function PlayerBar({
           </div>
         )}
       </div>
+      
+      {/* Mobile Mini Controls (Visible only on mobile) */}
+      <div className="mobile-mini-controls">
+        <button className="play-btn" onClick={(e) => { e.stopPropagation(); onPlayPauseToggle(); }} disabled={loadingTrack}>
+          {loadingTrack ? (
+            <Loader2 size={18} className="spinner" />
+          ) : isPlaying ? (
+            <Pause size={18} fill="#fff" />
+          ) : (
+            <Play size={18} fill="#fff" style={{ transform: 'translateX(1px)' }} />
+          )}
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); onNext(); }} title="Next Track">
+          <SkipForward size={22} />
+        </button>
+      </div>
 
       {/* Control Buttons & Progress Timeline */}
       <div className="player-controls-container">

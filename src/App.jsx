@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import MainView from './components/MainView';
 import PlayerBar from './components/PlayerBar';
 import NowPlayingOverlay from './components/NowPlayingOverlay';
+import MobileBottomNav from './components/MobileBottomNav';
 
 import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, deletePlaylist } from './utils/db';
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplay, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
@@ -969,9 +970,11 @@ export default function App() {
   };
 
   const handleCreatePlaylist = async (name) => {
+    const finalName = name && name.trim() ? name.trim() : `Playlist-${playlists.length + 1}`;
     const newPlaylist = {
       id: `pl:${Date.now()}`,
-      name,
+      name: finalName,
+      dp: null,
       tracks: []
     };
     const updated = [...playlists, newPlaylist];
@@ -982,6 +985,24 @@ export default function App() {
         savePlaylistToSheet(userProfile.displayName, newPlaylist.id, newPlaylist.name, newPlaylist.tracks);
       }
     }
+  };
+
+  const handleUpdatePlaylist = async (playlistId, updates) => {
+    const updated = playlists.map(pl => {
+      if (pl.id === playlistId) {
+        const up = { ...pl, ...updates };
+        if (userMode === 'local' || userMode === 'shared') {
+          savePlaylist(up);
+          if (userMode === 'shared' && userProfile) {
+            // Note: dp might not be synced to sheet yet, but we save it locally
+            savePlaylistToSheet(userProfile.displayName, up.id, up.name, up.tracks);
+          }
+        }
+        return up;
+      }
+      return pl;
+    });
+    setPlaylists(updated);
   };
 
   const handleAddToPlaylist = async (playlistId, trackId) => {
@@ -1042,9 +1063,12 @@ export default function App() {
           activePlaylistId={activePlaylistId}
           onPlayTrack={handlePlayTrack}
           onAddToPlaylist={handleAddToPlaylist}
+          onCreatePlaylist={handleCreatePlaylist}
+          onUpdatePlaylist={handleUpdatePlaylist}
           currentTrack={currentTrack}
           userProfile={userProfile}
           setCurrentTab={setCurrentTab}
+          setActivePlaylistId={setActivePlaylistId}
         />
       </div>
       <PlayerBar
@@ -1089,6 +1113,7 @@ export default function App() {
           setAutoNext={setAutoNext}
         />
       )}
+      <MobileBottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
     </div>
 
   );

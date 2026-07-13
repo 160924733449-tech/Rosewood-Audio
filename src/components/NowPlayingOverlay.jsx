@@ -62,6 +62,53 @@ export default function NowPlayingOverlay({
     document.addEventListener('mouseup', handleMouseUp);
   };
 
+  const circularProgressRef = useRef(null);
+
+  const handleCircularMouseDown = (e) => {
+    if (!circularProgressRef.current || !duration) return;
+    
+    const isTouch = e.type.startsWith('touch');
+    const startClientX = isTouch ? e.touches[0].clientX : e.clientX;
+    const startClientY = isTouch ? e.touches[0].clientY : e.clientY;
+
+    const updateCircularSeek = (clientX, clientY) => {
+      const rect = circularProgressRef.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      
+      const x = clientX - centerX;
+      const y = clientY - centerY;
+      let angle = Math.atan2(y, x);
+      
+      angle += Math.PI / 2;
+      if (angle < 0) angle += 2 * Math.PI;
+      
+      const percent = angle / (2 * Math.PI);
+      onSeek(Math.max(0, Math.min(1, percent)) * duration);
+    };
+
+    updateCircularSeek(startClientX, startClientY);
+
+    const handleMouseMove = (moveEvent) => {
+      if (moveEvent.cancelable) moveEvent.preventDefault();
+      const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      updateCircularSeek(clientX, clientY);
+    };
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleMouseMove);
+      document.removeEventListener('touchend', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleMouseMove, { passive: false });
+    document.addEventListener('touchend', handleMouseUp);
+  };
+
   const handleVolumeMouseDown = (e) => {
     if (!volumeRef.current) return;
     
@@ -108,12 +155,32 @@ export default function NowPlayingOverlay({
 
       {/* Center Artwork & Metadata */}
       <div className="overlay-center-panel">
-        <div className="overlay-art-container" key={track.id}>
+        <div className="overlay-art-container" key={track.id} style={{ position: 'relative' }}>
+          
+          <div className="vinyl-progress-container" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
+            <svg 
+              ref={circularProgressRef}
+              width="310" 
+              height="310" 
+              viewBox="0 0 310 310"
+              style={{ cursor: 'pointer', transform: 'rotate(-90deg)' }}
+              onMouseDown={handleCircularMouseDown}
+              onTouchStart={handleCircularMouseDown}
+            >
+              <circle cx="155" cy="155" r="148" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
+              <circle cx="155" cy="155" r="148" fill="none" stroke="var(--accent-rose)" strokeWidth="6" strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 148}
+                strokeDashoffset={2 * Math.PI * 148 * (1 - (progressPercent || 0) / 100)}
+                style={{ transition: 'stroke-dashoffset 0.1s linear' }}
+              />
+            </svg>
+          </div>
+
           {track.artwork ? (
             <img 
               src={track.artwork} 
               alt="Artwork" 
-              className="overlay-art water-drop-anim" 
+              className={`overlay-art water-drop-anim vinyl-art ${isPlaying ? 'spin' : ''}`} 
               key={track.artwork} // Changing key forces element recreation to replay animation
               decoding="async"
             />

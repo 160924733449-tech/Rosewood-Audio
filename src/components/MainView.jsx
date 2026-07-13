@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus } from 'lucide-react';
+import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera } from 'lucide-react';
 import { getRecommendations, getTopMatches } from '../utils/recommendationEngine';
 
 export default function MainView({
@@ -11,13 +11,71 @@ export default function MainView({
   onAddToPlaylist,
   currentTrack,
   userProfile,
-  setCurrentTab
+  setCurrentTab,
+  onCreatePlaylist,
+  onUpdatePlaylist,
+  setActivePlaylistId
 }) {
   const [recommendations, setRecommendations] = useState({ dailyMix: [], similarTracks: [], forgottenGems: [] });
   const [topMatches, setTopMatches] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [addedTrackId, setAddedTrackId] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [editingPlaylistId, setEditingPlaylistId] = useState(null);
+  const [editPlaylistName, setEditPlaylistName] = useState('');
+
+  const openPlaylistEdit = (pl) => {
+    setEditingPlaylistId(pl.id);
+    setEditPlaylistName(pl.name);
+  };
+
+  const handleSavePlaylistEdit = (e) => {
+    e.preventDefault();
+    if (editingPlaylistId && editPlaylistName.trim()) {
+      onUpdatePlaylist(editingPlaylistId, { name: editPlaylistName.trim() });
+    }
+    setEditingPlaylistId(null);
+  };
+
+  const handleDPChange = (e, playlistId) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        onUpdatePlaylist(playlistId, { dp: event.target.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const renderPlaylistCollage = (playlist) => {
+    if (playlist.dp) {
+       return <img src={playlist.dp} className="playlist-dp-full" alt="Cover" loading="lazy" decoding="async" />;
+    }
+    const plTracks = tracks.filter(t => playlist.tracks.includes(t.id));
+    const artworks = plTracks.filter(t => t.artwork).map(t => t.artwork);
+    const top4 = [...new Set(artworks)].slice(0, 4);
+    
+    if (top4.length === 0) {
+      return (
+        <div className="card-placeholder-art playlist-dp-placeholder">
+          <ListMusic size={32} />
+        </div>
+      );
+    }
+    
+    if (top4.length < 4) {
+      return <img src={top4[0]} className="playlist-dp-full" alt="Cover" loading="lazy" decoding="async" />;
+    }
+    
+    return (
+      <div className="playlist-collage">
+        {top4.map((art, i) => (
+          <img key={i} src={art} className="collage-img" alt="" loading="lazy" decoding="async" />
+        ))}
+      </div>
+    );
+  };
 
   useEffect(() => {
     const closeDropdown = () => setOpenDropdownId(null);
@@ -235,7 +293,7 @@ export default function MainView({
 
       {currentTab === 'library' && (
         <>
-          <div className="section-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
+          <div className="section-header library-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
               <h2>Your Collection</h2>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tracks.length} Songs Loaded</span>
@@ -406,6 +464,73 @@ export default function MainView({
             }
             return renderTrackTable(playlistTracks);
           })()}
+        </>
+      )}
+      {currentTab === 'playlists_hub' && (
+        <>
+          <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>Playlists Hub</h2>
+            <button className="btn-primary" style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer' }} onClick={() => onCreatePlaylist('')}>
+              <Plus size={16} style={{ verticalAlign: 'middle', marginRight: '6px' }}/> Create
+            </button>
+          </div>
+
+          {playlists.length === 0 ? (
+            <div className="import-prompt" style={{ marginTop: '40px' }}>
+              <ListMusic className="import-icon" size={64} style={{ opacity: 0.5 }} />
+              <h2 style={{ marginTop: '20px' }}>No playlists yet.</h2>
+              <p style={{ color: 'var(--text-secondary)', maxWidth: '360px', marginTop: '10px', lineHeight: '1.65' }}>
+                Create a playlist to curate your favorite tracks into one seamless collection.
+              </p>
+              <button 
+                className="btn-primary" 
+                style={{ marginTop: '20px', padding: '12px 24px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                onClick={() => onCreatePlaylist('')}
+              >
+                Create Playlist
+              </button>
+            </div>
+          ) : (
+            <div className="playlist-hub-grid">
+              {playlists.map(pl => (
+                <div key={pl.id} className="playlist-card glass">
+                  <div className="playlist-card-art-container" onClick={() => { setActivePlaylistId(pl.id); setCurrentTab('playlist'); }}>
+                    {renderPlaylistCollage(pl)}
+                    <div className="card-play-overlay">
+                      <Play size={24} fill="#000" style={{ transform: 'translateX(1px)' }} />
+                    </div>
+                  </div>
+                  <div className="playlist-card-info">
+                    {editingPlaylistId === pl.id ? (
+                      <form onSubmit={handleSavePlaylistEdit} style={{ display: 'flex', gap: '8px', width: '100%', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          value={editPlaylistName} 
+                          onChange={(e) => setEditPlaylistName(e.target.value)} 
+                          autoFocus 
+                          style={{ flex: 1, minWidth: 0, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'white' }} 
+                        />
+                        <button type="submit" style={{ background: 'transparent', border: 'none', color: 'var(--accent-coral)', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flexShrink: 0 }}>Save</button>
+                      </form>
+                    ) : (
+                      <>
+                        <h4 onClick={() => { setActivePlaylistId(pl.id); setCurrentTab('playlist'); }} style={{ cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pl.name}</h4>
+                        <div className="playlist-actions" style={{ display: 'flex', gap: '12px', color: 'var(--text-secondary)' }}>
+                          <button onClick={() => openPlaylistEdit(pl)} title="Rename Playlist" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+                            <Edit2 size={16} />
+                          </button>
+                          <label style={{ cursor: 'pointer' }} title="Change Cover Image">
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleDPChange(e, pl.id)} />
+                            <Camera size={16} />
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </main>

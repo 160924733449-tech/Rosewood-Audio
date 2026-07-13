@@ -133,7 +133,10 @@ export default function LoginScreen({ onLoginSuccess }) {
             <>
               <div className="auth-heading">
                 <h2>How would you like to listen?</h2>
-                <p>Choose how Rosewood Audio connects to your music.</p>
+                <p>
+                  Connect to your personal offline sanctuary or enter the shared vault. 
+                  Experience uncompromised, lossless audio wherever your music lives.
+                </p>
               </div>
 
               <div className="options-grid">
@@ -170,11 +173,11 @@ export default function LoginScreen({ onLoginSuccess }) {
             <>
               <div className="auth-heading">
                 <button className="back-link" onClick={() => setMode('select')}>← Back</button>
-                <h2>{isSignUp ? 'Create an Account' : 'Sign in to Library'}</h2>
+                <h2>{isSignUp ? 'Join the Experience' : 'Welcome Back'}</h2>
                 <p>
                   {isSignUp 
-                    ? 'Register your profile to track your listening history and playlists.' 
-                    : 'Access the shared 5TB music library. Write and upload rights are restricted to the owner.'}
+                    ? 'Step into a world of uncompromising high-fidelity audio. Create your profile to start curating a sanctuary of sound perfectly tailored to your tastes.' 
+                    : 'Unlock the vault. Immerse yourself in a curated 5TB collection of lossless music, preserved exactly as the artists intended.'}
                 </p>
               </div>
 

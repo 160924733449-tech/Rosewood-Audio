@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw } from 'lucide-react';
+import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic } from 'lucide-react';
 import { scanDirectory } from '../utils/fileSystemHelper';
 
 export default function Sidebar({
@@ -123,6 +123,14 @@ export default function Sidebar({
         >
           <Sparkles size={18} />
           <span>For You</span>
+        </button>
+
+        <button
+          className={`menu-item ${currentTab === 'playlists_hub' ? 'active' : ''}`}
+          onClick={() => handleMenuClick('playlists_hub')}
+        >
+          <ListMusic size={18} />
+          <span>Playlists Hub</span>
         </button>
       </nav>
 

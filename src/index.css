@@ -114,7 +114,7 @@ body {
 /* Left brand panel */
 .login-brand-panel {
   width: 48%;
-  background: linear-gradient(160deg, #530022 0%, #2e0015 60%, #17000a 100%);
+  background: var(--bg-deep);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -228,7 +228,7 @@ body {
 /* Right auth panel */
 .login-auth-panel {
   flex: 1;
-  background: var(--bg-deep);
+  background: linear-gradient(160deg, #530022 0%, #2e0015 60%, #17000a 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1628,4 +1628,375 @@ body {
 
 .spinner {
   animation: spin 1s linear infinite;
+}
+
+/* ========================================================================= */
+/* ─── MOBILE REDESIGN (Lark Player Aesthetic) ───                           */
+/* ========================================================================= */
+
+@media (max-width: 768px) {
+  /* Layout Adjustments */
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    display: none; /* Hide desktop sidebar */
+  }
+
+  .main-content {
+    flex: 1;
+    width: 100%;
+    padding: 10px;
+    padding-bottom: 140px; /* Space for mini player + bottom nav */
+  }
+
+  /* Library Tabs */
+  .library-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    justify-content: flex-start;
+  }
+  .library-tabs::-webkit-scrollbar {
+    display: none; /* Hide scrollbar for tabs */
+  }
+
+  /* Track List Mobile Styling */
+  .track-list {
+    padding-right: 0;
+  }
+
+  .track-item {
+    padding: 12px 10px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    background: rgba(44, 44, 44, 0.4);
+    border: none;
+    display: grid;
+    grid-template-columns: 50px 1fr 40px;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .track-item:hover, .track-item.playing {
+    background: rgba(200, 144, 167, 0.1);
+  }
+
+  .track-item .track-index {
+    display: none;
+  }
+
+  .track-item .track-artwork {
+    width: 50px;
+    height: 50px;
+    border-radius: 10px;
+    grid-column: 1;
+  }
+
+  .track-item .track-info {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .track-item .track-info .track-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .track-item .track-info .track-artist {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .track-item .track-album,
+  .track-item .track-duration {
+    display: none; /* Hide album and duration to save space */
+  }
+
+  .track-item .track-actions {
+    grid-column: 3;
+    opacity: 1;
+  }
+
+  .track-item .action-btn {
+    width: 36px;
+    height: 36px;
+    background: transparent;
+  }
+
+  /* Mobile Bottom Navigation */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 64px;
+    z-index: 1000;
+    justify-content: space-around;
+    align-items: center;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .mobile-bottom-nav .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    transition: color 0.2s;
+    width: 60px;
+  }
+
+  .mobile-bottom-nav .nav-item.active {
+    color: var(--accent-rose);
+  }
+
+  /* Floating Mini Player (PlayerBar overriding for mobile) */
+  .player-bar {
+    position: fixed;
+    bottom: 74px; /* Just above bottom nav */
+    left: 10px;
+    width: calc(100% - 20px);
+    height: 60px;
+    border-radius: 30px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(25px);
+    border: 1px solid var(--glass-border);
+    padding: 0 16px;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+
+  .player-bar.expanded {
+    display: none;
+  }
+
+  .player-bar .player-left {
+    width: auto;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .player-bar .player-artwork {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%; /* Make it circular like a small vinyl */
+  }
+
+  .player-bar .player-track-info {
+    max-width: 60%;
+  }
+
+  .player-bar .player-controls-container,
+  .player-bar .player-extra-controls {
+    display: none; /* Hide timeline, volume, shuffle, etc. */
+  }
+
+  /* We'll inject compact play controls into PlayerBar for mobile via React */
+  .mobile-mini-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mobile-mini-controls button {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .mobile-mini-controls .play-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent-deep);
+    color: white;
+  }
+  /* Full Screen Player Vinyl Style */
+  .now-playing-overlay .overlay-art-container {
+    padding-top: 20px;
+    display: flex;
+    justify-content: center;
+  }
+  
+  .vinyl-art {
+    border-radius: 50% !important;
+    border: 8px solid #111 !important;
+    box-shadow: 0 0 0 4px #222, 0 10px 40px rgba(0,0,0,0.8) !important;
+    width: 280px !important;
+    height: 280px !important;
+    object-fit: cover;
+  }
+
+  /* Login Page Mobile Styling */
+  .login-page {
+    flex-direction: column;
+    overflow: hidden; /* Prevent scrolling */
+  }
+
+  .login-brand-panel {
+    width: 100%;
+    padding: 20px 24px; /* Reduced padding */
+    flex: 0 0 auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .login-brand-panel::before,
+  .login-brand-panel::after,
+  .brand-hero-text,
+  .brand-qualities {
+    display: none; /* Hide unnecessary text to save vertical space */
+  }
+
+  .login-auth-panel {
+    width: 100%;
+    padding: 20px 24px; /* Reduced padding */
+    flex: 1;
+    overflow-y: auto; /* Only scroll the form area if absolutely necessary */
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-bottom-nav {
+    display: none;
+  }
+  .mobile-mini-controls {
+    display: none;
+  }
+  .vinyl-progress-container {
+    display: none;
+  }
+}
+
+/* Playlist Hub Grid */
+.playlist-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+  padding: 16px 0;
+}
+
+.playlist-card {
+  border-radius: 16px;
+  overflow: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.playlist-card:hover {
+  transform: translateY(-4px);
+  background: var(--bg-surface-hover);
+}
+
+.playlist-card-art-container {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-deep);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.playlist-card-art-container:hover .card-play-overlay {
+  opacity: 1;
+}
+
+.playlist-collage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  width: 100%;
+  height: 100%;
+}
+
+.collage-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playlist-dp-full {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playlist-dp-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+
+.playlist-card-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.playlist-card-info h4 {
+  font-size: 15px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.playlist-card-info .playlist-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.playlist-card-info button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playlist-card-info button:hover,
+.playlist-card-info label:hover {
+  color: var(--accent-coral);
+}
+
+@media (max-width: 768px) {
+  .library-header {
+    position: sticky;
+    top: -24px;
+    z-index: 50;
+    background: var(--bg-deep);
+    padding: 24px 0 16px 0;
+    margin-top: -24px;
+    margin-bottom: 8px;
+  }
 }
