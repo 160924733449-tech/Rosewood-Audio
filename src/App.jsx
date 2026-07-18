@@ -675,7 +675,11 @@ export default function App() {
         const authData = JSON.parse(savedSession);
         // We defer handleLoginSuccess execution to not block initial render excessively
         setTimeout(() => handleLoginSuccess(authData), 0);
-      } catch(e) {}
+      } catch(e) {
+        if (IS_NATIVE) setIsBooting(false);
+      }
+    } else {
+      if (IS_NATIVE) setIsBooting(false);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1369,12 +1373,12 @@ export default function App() {
     }
   };
 
-  if (!loggedIn) {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
-  }
-
   if ((isBooting || isFetchingLibrary) && IS_NATIVE) {
     return <SplashScreen />;
+  }
+
+  if (!loggedIn) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
   // Pre-process tracks to inject macroGenre for fast filtering
