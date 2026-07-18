@@ -1178,15 +1178,14 @@ body {
 .now-playing-overlay {
   position: fixed;
   inset: 0;
-  z-index: 999;
+  z-index: 1001;
   background-color: #080608;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: 40px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  padding: 60px 24px 32px 24px; /* Optimized padding for mobile (top accounts for status bar) */
+  overflow: hidden;
   animation: slide-up-overlay 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -1262,7 +1261,7 @@ body {
   justify-content: center;
   width: 100%;
   max-width: 1200px;
-  gap: 36px;
+  gap: 24px; /* Reduced gap for smaller screens */
   flex-grow: 1;
   z-index: 2;
 }
@@ -1305,8 +1304,9 @@ body {
 }
 
 .overlay-art-container {
-  width: 400px;
-  height: 400px;
+  width: 100%;
+  max-width: 360px; /* Make it responsive */
+  height: auto;
   aspect-ratio: 1;
   border-radius: 24px;
   overflow: hidden;
@@ -1471,7 +1471,7 @@ body {
   .main-content {
     display: block !important;
     height: 100vh !important;
-    padding: 12px 12px 0 12px !important;
+    padding: 0 !important;
   }
 
   /* Transform Sidebar into Bottom Navigation */
@@ -1785,7 +1785,7 @@ body {
   .main-content {
     flex: 1;
     width: 100%;
-    padding: 10px;
+    padding: 0;
     padding-bottom: 140px; /* Space for mini player + bottom nav */
   }
 
@@ -1893,7 +1893,7 @@ body {
     font-size: 11px;
     cursor: pointer;
     transition: color 0.2s;
-    width: 60px;
+    flex: 1;
   }
 
   .mobile-bottom-nav .nav-item.active {

@@ -86,10 +86,10 @@ export default function LoginScreen({ onLoginSuccess }) {
       <div className="login-brand-panel">
         <div className="brand-panel-inner">
           <div className="brand-lockup">
-            <div className="brand-icon-wrap">
-              <Music size={22} strokeWidth={1.5} />
+            <div className="brand-icon-wrap" style={{ padding: 0, background: 'transparent' }}>
+              <img src="/icon.png" alt="Reson8 Logo" style={{ width: '64px', height: '64px', objectFit: 'contain', transform: 'scale(1.5)' }} />
             </div>
-            <span className="brand-wordmark">Rosewood Audio</span>
+            <span className="brand-wordmark">Reson8</span>
           </div>
 
           <div className="brand-hero-text">
@@ -164,7 +164,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               </div>
 
               <p className="auth-footnote">
-                Rosewood Audio does not collect, sell, or process any of your personal data.
+                Reson8 does not collect, sell, or process any of your personal data.
               </p>
             </>
           )}

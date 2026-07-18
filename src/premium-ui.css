@@ -370,4 +370,12 @@ button:active {
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
   }
+
+  /* Full screen edge-to-edge on mobile */
+  .app-shell {
+    padding: 0 !important;
+  }
+  .main-view, .main-content, .sidebar, .player-bar {
+    border-radius: 0 !important;
+  }
 }

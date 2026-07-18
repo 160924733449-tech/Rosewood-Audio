@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Zap, Loader2 } from 'lucide-react';
+import { KeepAwake } from '@capacitor-community/keep-awake';
 import AudioVisualizer from './AudioVisualizer';
 import LyricsBoard from './LyricsBoard';
 import { fetchLyrics, parseLrc } from '../utils/lyricsApi';
@@ -84,6 +85,33 @@ export default function NowPlayingOverlay({
     }
     return () => { active = false; };
   }, [track?.artwork]);
+
+  useEffect(() => {
+    // Keep screen awake while overlay is open
+    const manageAwake = async () => {
+      const isNative = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
+      if (!isNative) return;
+      try {
+        await KeepAwake.keepAwake();
+      } catch (e) {
+        console.warn('KeepAwake failed', e);
+      }
+    };
+    manageAwake();
+
+    return () => {
+      const releaseAwake = async () => {
+        const isNative = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
+        if (!isNative) return;
+        try {
+          await KeepAwake.allowSleep();
+        } catch (e) {
+          console.warn('AllowSleep failed', e);
+        }
+      };
+      releaseAwake();
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;

@@ -81,9 +81,39 @@ export default function App() {
   const upcomingTracksRef = useRef([]); // Store precalculated upcoming tracks
   const abortControllersRef = useRef(new Map()); // Store abort controllers for in-flight requests
 
-  // Keep currentTrackRef in sync
+  // Initialize Native Plugins on Mount
+  useEffect(() => {
+    const initNative = async () => {
+      const isCapacitor = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
+      if (!isCapacitor) return;
+      try {
+        const { StatusBar, Style } = await import('@capacitor/status-bar');
+        const { SplashScreen } = await import('@capacitor/splash-screen');
+        
+        await StatusBar.setStyle({ style: Style.Dark });
+        await StatusBar.setBackgroundColor({ color: '#090a0f' });
+        await SplashScreen.hide();
+      } catch (e) {
+        console.warn('Native plugin init failed:', e);
+      }
+    };
+    initNative();
+  }, []);
+
+  // Keep currentTrackRef in sync and update OS Media Session
   useEffect(() => {
     currentTrackRef.current = currentTrack;
+    
+    if (currentTrack && 'mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: currentTrack.title || 'Unknown Title',
+        artist: currentTrack.artist || 'Unknown Artist',
+        album: currentTrack.album || 'Unknown Album',
+        artwork: [
+          { src: currentTrack.artwork || '/default-album-art.png', sizes: '512x512', type: 'image/png' }
+        ]
+      });
+    }
   }, [currentTrack]);
 
   const determineNextTrack = async (currTrack) => {
@@ -181,6 +211,9 @@ export default function App() {
       } else if (finalTrack.source === 'local') {
         if (preloadedUrlsRef.current[finalTrack.id]) {
           preloadUrl = preloadedUrlsRef.current[finalTrack.id];
+        } else if (finalTrack.devicePath) {
+          const convertSrc = typeof window !== 'undefined' && window.Capacitor ? window.Capacitor.convertFileSrc : (p) => p;
+          preloadUrl = convertSrc(finalTrack.devicePath);
         } else if (finalTrack.fileHandle) {
           const hasPermission = await finalTrack.fileHandle.queryPermission({ mode: 'read' }) === 'granted';
           if (hasPermission) {
@@ -723,7 +756,10 @@ export default function App() {
           }
           
         } else if (track.source === 'local') {
-          if (track.fileHandle) {
+          if (track.devicePath) {
+            const convertSrc = typeof window !== 'undefined' && window.Capacitor ? window.Capacitor.convertFileSrc : (p) => p;
+            playUrl = convertSrc(track.devicePath);
+          } else if (track.fileHandle) {
             const opts = { mode: 'read' };
             if ((await track.fileHandle.queryPermission(opts)) !== 'granted') {
               await track.fileHandle.requestPermission(opts);
@@ -1148,6 +1184,15 @@ export default function App() {
     setPlaylists([]);
   };
 
+  const handleClearLibrary = async () => {
+    if (window.confirm("Are you sure you want to clear your entire library? This cannot be undone.")) {
+      setTracks([]);
+      if (userMode === 'local' || userMode === 'shared') {
+        await saveTracks([]);
+      }
+    }
+  };
+
   if (!loggedIn) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
@@ -1180,6 +1225,13 @@ export default function App() {
           onUpdatePlaylist={handleUpdatePlaylist}
           currentTrack={currentTrack}
           userProfile={userProfile}
+          userMode={userMode}
+          onLogout={handleLogout}
+          onTracksImported={handleTracksImported}
+          onRefreshLibrary={handleRefreshLibrary}
+          onClearLibrary={handleClearLibrary}
+          audioQuality={audioQuality}
+          setAudioQuality={setAudioQuality}
           setCurrentTab={setCurrentTab}
           setActivePlaylistId={setActivePlaylistId}
         />

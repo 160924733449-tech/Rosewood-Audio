@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical } from 'lucide-react';
+import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical, Download, LogOut, Settings, Trash2, RefreshCw } from 'lucide-react';
 import { getRecommendations, getTopMatches } from '../utils/recommendationEngine';
 import { SkeletonTrackList } from './SkeletonTrack';
 import { useContextMenu } from './ContextMenu';
+import { triggerFileSelect } from '../utils/fileSystemHelper';
 
 export default function MainView({
   currentTab,
@@ -17,7 +18,14 @@ export default function MainView({
   setCurrentTab,
   onCreatePlaylist,
   onUpdatePlaylist,
-  setActivePlaylistId
+  setActivePlaylistId,
+  userMode,
+  onLogout,
+  onTracksImported,
+  onRefreshLibrary,
+  onClearLibrary,
+  audioQuality,
+  setAudioQuality
 }) {
   const [recommendations, setRecommendations] = useState({ dailyMix: [], similarTracks: [], forgottenGems: [] });
   const [topMatches, setTopMatches] = useState([]);
@@ -31,6 +39,17 @@ export default function MainView({
   const openPlaylistEdit = (pl) => {
     setEditingPlaylistId(pl.id);
     setEditPlaylistName(pl.name);
+  };
+
+  const handleImportMusic = async () => {
+    try {
+      const newTracks = await triggerFileSelect();
+      if (newTracks && newTracks.length > 0) {
+        onTracksImported(newTracks);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleSavePlaylistEdit = (e) => {
@@ -280,8 +299,24 @@ export default function MainView({
               <FolderPlus className="import-icon" size={64} />
               <h2>Your library is empty.</h2>
               <p style={{ color: 'var(--text-secondary)', maxWidth: '360px', marginTop: '10px', lineHeight: '1.65' }}>
-                Point Rosewood to a folder on your hard drive and every song inside will be scanned, organised, and ready to play.
+                Point Reson8 to a folder on your hard drive and every song inside will be scanned, organised, and ready to play.
               </p>
+              {userMode === 'local' && (
+                <button 
+                  className="import-btn"
+                  onClick={handleImportMusic}
+                >
+                  Import Music
+                </button>
+              )}
+              {userMode === 'shared' && (
+                <button 
+                  className="import-btn"
+                  onClick={onRefreshLibrary}
+                >
+                  Refresh Library
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -377,7 +412,7 @@ export default function MainView({
           {tracks.length === 0 ? (
             <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '80px 0' }}>
               Import a music folder to unlock personalised recommendations.
-              Rosewood learns your taste quietly — no ratings, no stars.
+              Reson8 learns your taste quietly — no ratings, no stars.
             </div>
           ) : (
             <>
@@ -556,6 +591,103 @@ export default function MainView({
             </div>
           )}
         </>
+      )}
+
+      {currentTab === 'settings' && (
+        <div style={{ paddingBottom: '60px' }}>
+          <div className="section-header">
+            <h2>Settings</h2>
+          </div>
+          
+          {(() => {
+            const isNative = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
+            return (
+          <div className="settings-section" style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px', margin: '0 auto' }}>
+            <div className="user-profile-badge" style={{ display: 'flex', padding: '20px', background: 'var(--bg-surface)', borderRadius: '16px', alignItems: 'center', gap: '16px' }}>
+              <div className="profile-avatar" style={{ width: '48px', height: '48px', fontSize: '18px' }}>
+                {userProfile?.displayName ? userProfile.displayName.charAt(0).toUpperCase() : '?'}
+              </div>
+              <div className="profile-info">
+                <div className="profile-name" style={{ fontSize: '18px', fontWeight: 'bold' }}>{userProfile?.displayName || 'User'}</div>
+                <div className="profile-mode" style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{userMode} Mode</div>
+              </div>
+            </div>
+
+            <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px' }}>
+              <h3 style={{ marginBottom: '16px', fontSize: '16px', color: 'var(--text-primary)' }}>Audio Quality</h3>
+              <select 
+                value={audioQuality} 
+                onChange={(e) => setAudioQuality(e.target.value)}
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+              >
+                <option value="auto">Auto</option>
+                <option value="low">Low (Data Saver)</option>
+                <option value="high">High (Original)</option>
+              </select>
+            </div>
+
+            {!isNative && (
+              <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px' }}>
+                <h3 style={{ marginBottom: '16px', fontSize: '16px', color: 'var(--text-primary)' }}>Mobile App</h3>
+                <a 
+                  href="/reson8.apk" 
+                  download
+                  className="option-btn hover-scale" 
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--gradient-accent)', borderRadius: '12px', cursor: 'pointer', color: '#fff', textDecoration: 'none', fontWeight: 'bold' }}
+                >
+                  <Download size={18} />
+                  <span>Download Android App (.apk)</span>
+                </a>
+              </div>
+            )}
+
+            <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <h3 style={{ marginBottom: '4px', fontSize: '16px', color: 'var(--text-primary)' }}>Library Management</h3>
+              
+              {userMode === 'local' && (
+                <button 
+                  className="option-btn hover-scale" 
+                  onClick={handleImportMusic}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
+                >
+                  <FolderPlus size={18} color="var(--accent-coral)" />
+                  <span>Import Music Folder</span>
+                </button>
+              )}
+              
+              {userMode === 'shared' && (
+                <button 
+                  className="option-btn hover-scale" 
+                  onClick={onRefreshLibrary}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
+                >
+                  <RefreshCw size={18} color="var(--accent-coral)" />
+                  <span>Refresh Shared Library</span>
+                </button>
+              )}
+
+              <button 
+                className="option-btn hover-scale" 
+                onClick={onLogout}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'rgba(213, 28, 57, 0.05)', border: '1px dashed var(--accent-rose)', borderRadius: '12px', cursor: 'pointer', color: 'var(--accent-rose)' }}
+              >
+                <LogOut size={18} />
+                <span>Logout / Switch Library</span>
+              </button>
+
+              <button 
+                className="option-btn hover-scale" 
+                onClick={onClearLibrary}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'rgba(213, 28, 57, 0.05)', border: '1px dashed var(--accent-rose)', borderRadius: '12px', cursor: 'pointer', color: 'var(--accent-rose)', marginTop: '8px' }}
+              >
+                <Trash2 size={18} />
+                <span>Clear Local Data & Library</span>
+              </button>
+            </div>
+          </div>
+          );
+          })()}
+        </div>
       )}
     </main>
   );

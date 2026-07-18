@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic } from 'lucide-react';
-import { scanDirectory } from '../utils/fileSystemHelper';
+import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic, Download, Settings } from 'lucide-react';
+import { scanDirectory, triggerFileSelect } from '../utils/fileSystemHelper';
 
 export default function Sidebar({
   currentTab,
@@ -20,39 +20,10 @@ export default function Sidebar({
   const handleSelectFolder = async () => {
     try {
       setLoading(true);
-      const dirHandle = await window.showDirectoryPicker();
-      const files = await scanDirectory(dirHandle);
-
-      // Instantly map files to track list states using filename defaults.
-      // Under 5ms load time! Avoid heavy tag extraction and duration loading on scan.
-      const tracks = files.map(file => {
-        const cleanName = file.name.replace(/\.[^/.]+$/, ""); // Strip extension
-        const parts = cleanName.split(' - ');
-        let artist = 'Unknown Artist';
-        let title = cleanName;
-
-        if (parts.length > 1) {
-          artist = parts[0].trim();
-          title = parts.slice(1).join(' - ').trim();
-        }
-
-        return {
-          id: `local:${file.name}`,
-          name: file.name,
-          title,
-          artist,
-          album: 'Unknown Album',
-          genre: 'Local Music',
-          year: '',
-          artwork: null,
-          duration: null,
-          source: 'local',
-          fileHandle: file.fileHandle,
-          url: '' // Will be generated dynamically on playback to prevent browser session expires
-        };
-      });
-
-      onTracksImported(tracks);
+      const tracks = await triggerFileSelect();
+      if (tracks && tracks.length > 0) {
+        onTracksImported(tracks);
+      }
     } catch (err) {
       console.error('Error importing folder:', err);
     } finally {
@@ -92,12 +63,14 @@ export default function Sidebar({
 
   const avatarChar = userProfile?.displayName ? userProfile.displayName.charAt(0).toUpperCase() : '?';
 
+  const isNative = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
+
   return (
     <>
     <aside className="sidebar glass">
       <div className="sidebar-logo">
-        <Disc className="logo-icon spin" size={28} />
-        <h2>ROSEWOOD</h2>
+        <img src="/icon.png" alt="Reson8 Logo" className="logo-icon" style={{ width: '48px', height: '48px', objectFit: 'contain', transform: 'scale(1.5)' }} />
+        <h2>RESON8</h2>
       </div>
 
       <nav className="sidebar-menu">
@@ -132,6 +105,26 @@ export default function Sidebar({
           <ListMusic size={18} />
           <span>Playlists Hub</span>
         </button>
+
+        <button
+          className={`menu-item ${currentTab === 'settings' ? 'active' : ''}`}
+          onClick={() => handleMenuClick('settings')}
+        >
+          <Settings size={18} />
+          <span>Settings</span>
+        </button>
+
+        {!isNative && (
+          <a
+            href="/reson8.apk"
+            download
+            className="menu-item"
+            style={{ textDecoration: 'none', color: 'var(--accent-coral)' }}
+          >
+            <Download size={18} />
+            <span>Download App</span>
+          </a>
+        )}
       </nav>
 
       {userMode === 'local' && (

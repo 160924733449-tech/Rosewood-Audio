@@ -27,6 +27,13 @@ export default function MobileBottomNav({ currentTab, setCurrentTab }) {
         <ListMusic size={22} />
         <span>Playlists</span>
       </button>
+      <button 
+        className={`nav-item ${currentTab === 'settings' ? 'active' : ''}`}
+        onClick={() => setCurrentTab('settings')}
+      >
+        <Settings size={22} />
+        <span>Settings</span>
+      </button>
     </nav>
   );
 }

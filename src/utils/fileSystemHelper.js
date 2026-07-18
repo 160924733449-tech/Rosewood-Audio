@@ -28,3 +28,79 @@ export async function scanDirectory(dirHandle) {
   await scan(dirHandle);
   return files;
 }
+
+export async function triggerFileSelect() {
+  const isCapacitor = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
+  if (isCapacitor) {
+    try {
+      const { FilePicker } = await import('@capawesome/capacitor-file-picker');
+      const result = await FilePicker.pickFiles({
+        types: ['audio/*'],
+        multiple: true,
+      });
+
+      return result.files.map(f => {
+        const cleanName = f.name.replace(/\.[^/.]+$/, "");
+        const parts = cleanName.split(' - ');
+        let artist = 'Unknown Artist';
+        let title = cleanName;
+        if (parts.length > 1) {
+          artist = parts[0].trim();
+          title = parts.slice(1).join(' - ').trim();
+        }
+
+        return {
+          id: `local:${f.name}`,
+          name: f.name,
+          title,
+          artist,
+          album: 'Unknown Album',
+          genre: 'Local Music',
+          year: '',
+          artwork: null,
+          duration: null,
+          source: 'local',
+          devicePath: f.path,
+          url: ''
+        };
+      });
+    } catch (e) {
+      console.error('Native FilePicker error:', e);
+      return [];
+    }
+  } else {
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      const files = await scanDirectory(dirHandle);
+      
+      return files.map(file => {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "");
+        const parts = cleanName.split(' - ');
+        let artist = 'Unknown Artist';
+        let title = cleanName;
+        if (parts.length > 1) {
+          artist = parts[0].trim();
+          title = parts.slice(1).join(' - ').trim();
+        }
+
+        return {
+          id: `local:${file.name}`,
+          name: file.name,
+          title,
+          artist,
+          album: 'Unknown Album',
+          genre: 'Local Music',
+          year: '',
+          artwork: null,
+          duration: null,
+          source: 'local',
+          fileHandle: file.fileHandle,
+          url: ''
+        };
+      });
+    } catch (err) {
+      console.error('Directory Picker error:', err);
+      return [];
+    }
+  }
+}
