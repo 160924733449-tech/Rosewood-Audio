@@ -50,6 +50,7 @@ export default function App() {
   const [autoNext, setAutoNext] = useState(true);
   const [audioQuality, setAudioQualityState] = useState(localStorage.getItem('aura_audio_quality') || 'auto');
   const [isFetchingLibrary, setIsFetchingLibrary] = useState(false);
+  const [isBooting, setIsBooting] = useState(IS_NATIVE);
   const audioQualityRef = useRef(audioQuality);
 
   const setAudioQuality = (q) => {
@@ -581,6 +582,7 @@ export default function App() {
 
 
   // Load local data if in Local Mode
+// Load local data if in Local Mode
   useEffect(() => {
     if (loggedIn && userMode === 'local') {
       loadLocalData();
@@ -602,6 +604,9 @@ export default function App() {
       if (track) {
         setTrackSilent(track, lastPosition);
       }
+    }
+    if (IS_NATIVE) {
+      setTimeout(() => setIsBooting(false), 2000);
     }
   };
 
@@ -657,6 +662,9 @@ export default function App() {
         }
       }
       setIsFetchingLibrary(false);
+      if (IS_NATIVE) {
+        setTimeout(() => setIsBooting(false), 1000);
+      }
     }
   };
 
@@ -1365,7 +1373,7 @@ export default function App() {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
-  if (isFetchingLibrary && IS_NATIVE) {
+  if ((isBooting || isFetchingLibrary) && IS_NATIVE) {
     return <SplashScreen />;
   }
 
