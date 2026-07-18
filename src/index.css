@@ -1,32 +1,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
 
 :root {
-  --bg-deep: #161616;         /* Slightly darker variant for depth */
-  --bg-base: #212121;         /* Dominant color: Dark Gray/Charcoal */
-  --bg-surface: #2c2c2c;      /* Slightly lighter for panels */
-  --bg-surface-hover: #383838;
-  --border-subtle: #333333;
+  --bg-deep: #09090b;         /* Apple/Stripe-like absolute dark */
+  --bg-base: #121214;         /* Rich neutral dark base */
+  --bg-surface: #18181b;      /* Panel surface */
+  --bg-surface-hover: #27272a;
+  --border-subtle: rgba(255, 255, 255, 0.08);
   
-  --text-primary: #FBF5E5;    /* Cream/Off-white for text */
-  --text-secondary: #d8d2c4;  
-  --text-muted: #b5b0a3;      
+  --text-primary: #ffffff;    /* Pure White for perfect contrast */
+  --text-secondary: #c1c1c8;  /* Brightened gray for AAA */
+  --text-muted: #a1a1aa;      /* Kept high for legibility */
   
-  --accent-deep: #A35C7A;     /* Darker rose */
-  --accent-rose: #C890A7;     /* Light dusty rose */
+  --accent-deep: #7b2c4d;     /* Sophisticated Rose */
+  --accent-rose: #C890A7;     
   --accent-coral: #C890A7;    
   
-  --gradient-accent: linear-gradient(135deg, #A35C7A 0%, #C890A7 100%);
-  --gradient-soft: linear-gradient(135deg, rgba(163, 92, 122, 0.08) 0%, rgba(200, 144, 167, 0.02) 100%);
+  --gradient-accent: linear-gradient(135deg, #a84b6f 0%, #C890A7 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(200, 144, 167, 0.12) 0%, rgba(200, 144, 167, 0.02) 100%);
   
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   --font-serif: "New York", -apple-system-serif, "Playfair Display", Georgia, serif;
   
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 10px 40px -15px rgba(0, 0, 0, 0.8);
-  --shadow-glow: 0 4px 15px rgba(200, 144, 167, 0.35);
+  --shadow-sm: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-lg: 0 16px 48px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-glow: 0 8px 24px rgba(200, 144, 167, 0.2);
   
-  --glass-bg: rgba(33, 33, 33, 0.85);
-  --glass-border: rgba(51, 51, 51, 0.5);
+  --glass-bg: rgba(24, 24, 27, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.06);
 }
 
 * {
@@ -50,7 +50,7 @@ body {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: radial-gradient(circle at 10% 10%, #302026 0%, var(--bg-deep) 100%);
+  background: radial-gradient(circle at 0% 0%, rgba(200, 144, 167, 0.05) 0%, var(--bg-deep) 70%);
 }
 
 /* Custom Scrollbars */
@@ -426,8 +426,9 @@ body {
 }
 
 .input-group input:focus {
-  outline: none;
-  border-color: var(--accent-rose);
+  outline: 2px solid var(--accent-rose);
+  outline-offset: 2px;
+  border-color: transparent;
   background: var(--bg-surface);
   box-shadow: 0 0 0 3px rgba(213, 28, 57, 0.15);
 }
@@ -515,9 +516,10 @@ body {
 }
 
 .sidebar-logo h2 {
-  font-family: var(--font-serif);
-  font-size: 22px;
-  font-weight: 700;
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
   letter-spacing: -0.5px;
   color: var(--text-primary);
 }
@@ -544,6 +546,13 @@ body {
   transition: all 0.2s ease;
   width: 100%;
   text-align: left;
+  min-height: 44px; /* Fitts's Law target */
+  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.menu-item:focus-visible {
+  outline: 2px solid var(--accent-rose);
+  outline-offset: -2px;
 }
 
 .menu-item:hover, .menu-item.active {
@@ -701,9 +710,11 @@ body {
 }
 
 .welcome-banner h1 {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 40px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
   margin-bottom: 10px;
   letter-spacing: -0.5px;
   color: var(--text-primary);
@@ -712,6 +723,8 @@ body {
 .welcome-banner p {
   color: var(--text-secondary);
   font-size: 15px;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
 }
 
 .import-prompt {
@@ -756,9 +769,10 @@ body {
 }
 
 .section-header h2 {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   color: var(--text-primary);
 }
 
@@ -853,9 +867,10 @@ body {
 }
 
 .card-info p {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
   white-space: nowrap;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1069,6 +1084,12 @@ body {
 
 .control-btn.active {
   color: var(--accent-rose);
+}
+
+.control-btn:focus-visible {
+  outline: 2px solid var(--accent-rose);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .play-pause-btn {

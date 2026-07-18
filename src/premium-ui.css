@@ -4,7 +4,7 @@
 
 /* 1. Aurora Background */
 body {
-  background: radial-gradient(circle at 0% 0%, #0d0914 0%, #020104 100%) !important;
+  background: radial-gradient(circle at 0% 0%, #121214 0%, #09090b 100%) !important;
   position: relative;
 }
 
@@ -21,16 +21,16 @@ body::before, body::after {
   pointer-events: none;
   z-index: 0;
   background: 
-    radial-gradient(circle at 50% 50%, rgba(163, 92, 122, 0.15), transparent 60%),
-    radial-gradient(circle at 80% 20%, rgba(56, 126, 255, 0.1), transparent 50%),
-    radial-gradient(circle at 20% 80%, rgba(200, 144, 167, 0.15), transparent 50%);
+    radial-gradient(circle at 50% 50%, rgba(123, 44, 77, 0.1), transparent 60%),
+    radial-gradient(circle at 80% 20%, rgba(200, 144, 167, 0.05), transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(123, 44, 77, 0.08), transparent 50%);
   animation: aurora-shift 30s ease-in-out infinite alternate;
 }
 
 body::after {
   background: 
-    radial-gradient(circle at 30% 30%, rgba(30, 215, 96, 0.05), transparent 60%),
-    radial-gradient(circle at 70% 70%, rgba(255, 0, 128, 0.05), transparent 60%);
+    radial-gradient(circle at 30% 30%, rgba(200, 144, 167, 0.04), transparent 60%),
+    radial-gradient(circle at 70% 70%, rgba(123, 44, 77, 0.06), transparent 60%);
   animation: aurora-shift 40s ease-in-out infinite alternate-reverse;
 }
 
@@ -58,37 +58,37 @@ body::after {
 
 .sidebar {
   border-radius: 24px !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  background: rgba(20, 20, 20, 0.6) !important;
-  backdrop-filter: blur(40px) !important;
-  -webkit-backdrop-filter: blur(40px) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid var(--border-subtle) !important;
+  background: rgba(24, 24, 27, 0.65) !important;
+  backdrop-filter: blur(40px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(120%) !important;
+  box-shadow: var(--shadow-lg) !important;
   margin-right: 0 !important; /* using gap on .main-content */
   height: 100% !important;
 }
 
 .main-view {
   border-radius: 24px !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  background: rgba(20, 20, 20, 0.6) !important;
-  backdrop-filter: blur(40px) !important;
-  -webkit-backdrop-filter: blur(40px) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid var(--border-subtle) !important;
+  background: rgba(24, 24, 27, 0.65) !important;
+  backdrop-filter: blur(40px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(120%) !important;
+  box-shadow: var(--shadow-lg) !important;
   height: 100% !important;
   width: 100% !important;
 }
 
 .player-bar {
   border-radius: 24px !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  background: rgba(30, 30, 30, 0.65) !important;
+  border: 1px solid var(--border-subtle) !important;
+  background: rgba(24, 24, 27, 0.8) !important;
   backdrop-filter: blur(40px) saturate(150%) !important;
   -webkit-backdrop-filter: blur(40px) saturate(150%) !important;
-  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  box-shadow: var(--shadow-lg) !important;
   margin: 0 !important;
   position: relative !important;
   width: 100% !important;
-  height: 88px !important;
+  height: 96px !important; /* Increased for Fitts law */
 }
 
 /* Typography Overhaul */
@@ -100,15 +100,15 @@ h1, h2, h3, .view-header h2 {
 
 .track-item {
   border-radius: 12px !important;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
   border: 1px solid transparent !important;
 }
 
 .track-item:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
-  transform: scale(1.01) !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.05) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  transform: scale(1.005) !important;
+  box-shadow: var(--shadow-sm) !important;
+  border-color: var(--border-subtle) !important;
 }
 
 /* Cinematic Glow on Play Button */
@@ -138,16 +138,16 @@ h1, h2, h3, .view-header h2 {
 /* Enhanced Cards */
 .playlist-card, .album-card {
   border-radius: 16px !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  background: rgba(30, 30, 30, 0.4) !important;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  border: 1px solid var(--border-subtle) !important;
+  background: rgba(24, 24, 27, 0.4) !important;
+  transition: all 0.4s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
   overflow: hidden !important;
 }
 
 .playlist-card:hover, .album-card:hover {
-  transform: translateY(-6px) !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(200, 144, 167, 0.3) !important;
-  background: rgba(40, 40, 40, 0.6) !important;
+  transform: translateY(-4px) !important;
+  box-shadow: var(--shadow-lg), var(--shadow-glow) !important;
+  background: rgba(39, 39, 42, 0.6) !important;
 }
 
 /* Glowing Progress Thumb */
@@ -170,7 +170,7 @@ h1, h2, h3, .view-header h2 {
 
 /* Sidebar Active State Glow */
 .menu-item.active {
-  background: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
   box-shadow: inset 3px 0 0 var(--accent-rose) !important;
   border-radius: 12px !important;
 }
