@@ -1523,6 +1523,17 @@ body {
     padding-left: 8px;
   }
   
+  .menu-item span {
+    display: block !important;
+    margin-top: 4px;
+    color: var(--text-secondary);
+  }
+  
+  .menu-item.active span {
+    color: var(--accent-rose);
+    font-weight: 600;
+  }
+  
   .desktop-only-playlist-btn {
     display: none !important;
   }
@@ -1532,23 +1543,24 @@ body {
     cursor: pointer;
   }
 
-  /* Transform PlayerBar into Mini-Player */
+  /* Transform PlayerBar into Mini-Player (Docked) */
   .player-bar {
     position: fixed;
     bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-    left: 12px;
-    width: calc(100% - 16px);
-    height: 64px;
-    margin: 8px;
-    border-radius: 12px;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
     padding: 0 16px;
     z-index: 99;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
     justify-content: space-between;
     background: var(--bg-surface);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .player-art, .player-placeholder-art {
@@ -1582,10 +1594,55 @@ body {
   }
 
   /* Table adjustments for Mobile UX */
-  .track-album-cell,
-  .track-number-cell,
-  .track-duration-cell {
+  .track-table {
+    display: block;
+    width: 100%;
+  }
+
+  .track-table thead {
     display: none;
+  }
+
+  .track-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .track-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .track-table td {
+    display: block;
+    padding: 0;
+    border: none !important;
+  }
+
+  /* Make Title and Artist column take full width */
+  .track-table td:nth-child(2) {
+    flex: 1;
+    width: 100%;
+    margin-left: 12px;
+  }
+
+  .track-table .track-number-cell,
+  .track-table .track-album-cell,
+  .track-table .track-duration-cell {
+    display: none !important;
+  }
+
+  .track-table-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .track-table-artist {
+    font-size: 13px;
   }
 
   .playlist-select-btn {
