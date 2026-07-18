@@ -13,7 +13,10 @@ export default function Sidebar({
   userProfile,
   onLogout,
   onTracksImported,
-  onRefreshLibrary
+  onRefreshLibrary,
+  spaces,
+  currentSpace,
+  setCurrentSpace
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -72,6 +75,34 @@ export default function Sidebar({
         <img src="/icon.png" alt="Reson8 Logo" className="logo-icon" style={{ width: '48px', height: '48px', objectFit: 'contain', transform: 'scale(1.5)' }} />
         <h2>RESON8</h2>
       </div>
+
+      {spaces && spaces.length > 1 && (
+        <div className="space-switcher" style={{ padding: '0 20px', marginBottom: '24px', display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <style>{`
+            .space-switcher::-webkit-scrollbar { display: none; }
+          `}</style>
+          {spaces.map(s => (
+            <button 
+              key={s} 
+              onClick={() => setCurrentSpace(s)}
+              style={{
+                background: currentSpace === s ? 'var(--text-primary)' : 'rgba(255, 255, 255, 0.05)',
+                color: currentSpace === s ? 'var(--bg-deep)' : 'var(--text-secondary)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                padding: '6px 16px',
+                borderRadius: '100px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1)'
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
 
       <nav className="sidebar-menu">
         <button

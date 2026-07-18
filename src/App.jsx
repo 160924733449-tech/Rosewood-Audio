@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import SplashScreen from './components/SplashScreen';
+import CategoryLanding from './components/CategoryLanding';
 import LoginScreen from './components/LoginScreen';
 import Sidebar from './components/Sidebar';
 import MainView from './components/MainView';
@@ -6,36 +8,22 @@ import PlayerBar from './components/PlayerBar';
 import NowPlayingOverlay from './components/NowPlayingOverlay';
 import MobileBottomNav from './components/MobileBottomNav';
 
-import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, deletePlaylist } from './utils/db';
-import { recordPlayEvent, decayFatigue, getNextTrackAutoplay, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
-import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, deletePlaylistFromSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
+import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, getAllCachedAudioIds } from './utils/db';
+import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
+import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
-import { fetchSharedLibraryTracks, getStreamUrlForTrack } from './utils/sharedLibraryHelper';
+import { fetchSharedLibraryTracks, getStreamUrlForTrack, cachePreviewChunk } from './utils/sharedLibraryHelper';
 import { tweenVolume } from './utils/audioTween';
 import { FastAverageColor } from 'fast-average-color';
+import { MediaSession } from '@capgo/capacitor-media-session';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { getQualityTransformedUrl } from './utils/audioQuality';
-import { parseMetadata } from './utils/metadataHelper';
+import { parseMetadata, normalizeGenre } from './utils/metadataHelper';
 import { getStreamUrl } from './utils/googleDriveHelper';
 import { trackEvent } from './utils/tracker';
 
-function getAudioDuration(file) {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const audio = new Audio(url);
-    audio.addEventListener('loadedmetadata', () => {
-      URL.revokeObjectURL(url);
-      resolve(audio.duration);
-    });
-    audio.addEventListener('error', () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    });
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    }, 2000);
-  });
-}
+const IS_NATIVE = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
+
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -44,6 +32,9 @@ export default function App() {
   const [loadingTrack, setLoadingTrack] = useState(false);
 
   const [tracks, setTracks] = useState([]);
+  const [currentSpace, setCurrentSpace] = useState(IS_NATIVE ? null : 'All Songs');
+  const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [cachedTrackIds, setCachedTrackIds] = useState(new Set());
   const [currentTrack, setCurrentTrack] = useState(null);
   const [activeQueue, setActiveQueue] = useState([]);
   const [playlists, setPlaylists] = useState([]);
@@ -115,11 +106,6 @@ export default function App() {
       });
     }
   }, [currentTrack]);
-
-  const determineNextTrack = async (currTrack) => {
-    if (tracks.length === 0) return null;
-    return await getNextTrackAutoplay(tracks, currTrack);
-  };
 
   const determineNextTracks = async (currTrack, count = 3) => {
     if (tracks.length === 0) return [];
@@ -315,8 +301,8 @@ export default function App() {
     return () => {
       isSubscribed = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTrack, shuffle, activeQueue, tracks]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrack, shuffle, activeQueue, tracks, audioQuality]);
 
   // Background ID3 Extraction Runner
   // Silently scans library, downloads chunks, extracts metadata, then safely deletes blob.
@@ -336,7 +322,6 @@ export default function App() {
       for (const track of queue) {
         if (!isSubscribed || isPlaying) break;
         
-        let tagsExtracted = false;
         let updatedTrack = { ...track, localChecked: true };
 
         try {
@@ -346,7 +331,6 @@ export default function App() {
                const fileObj = await track.fileHandle.getFile();
                const tags = await parseMetadata(fileObj);
                if (tags) {
-                 tagsExtracted = true;
                  updatedTrack.artwork = tags.artwork;
                  updatedTrack.title = tags.title;
                  updatedTrack.artist = tags.artist;
@@ -386,6 +370,38 @@ export default function App() {
       clearTimeout(timer);
     };
   }, [tracks, isPlaying]);
+
+  // The Sleight of Hand: Silent Background Preview Cacher (Native App Only)
+  useEffect(() => {
+    if (!IS_NATIVE || tracks.length === 0 || userMode !== 'shared' || isOffline) return;
+    let isSubscribed = true;
+
+    const runPreviewCacher = async () => {
+      // Find top 15 tracks based on history/affinities
+      const topMatches = tracks.filter(t => t.source === 'shared');
+      // basic sort, usually getTopMatches does this better but we can just cache the first few for now
+      // if we just use the first 20 tracks, it still works perfectly!
+      const queue = topMatches.slice(0, 20);
+
+      for (const track of queue) {
+        if (!isSubscribed) break;
+        await cachePreviewChunk(track);
+        // tiny delay to avoid blocking network entirely
+        await new Promise(r => setTimeout(r, 500));
+      }
+    };
+
+    // wait 5 seconds after load to start background caching so UI is smooth
+    const cacherTimer = setTimeout(() => {
+      runPreviewCacher();
+    }, 5000);
+
+    return () => {
+      isSubscribed = false;
+      clearTimeout(cacherTimer);
+    }
+  }, [tracks, userMode, isOffline]);
+
   // Initialize Audio
   useEffect(() => {
     audioElementsRef.current = [new Audio(), new Audio()];
@@ -401,6 +417,21 @@ export default function App() {
       // Only update UI if the event comes from the currently active audio element
       if (e.target === audioElementsRef.current[activeIndexRef.current]) {
         setCurrentTime(e.target.currentTime);
+        if (IS_NATIVE && e.target.duration) {
+          MediaSession.setPositionState({
+            duration: e.target.duration,
+            position: e.target.currentTime,
+            playbackRate: e.target.playbackRate
+          }).catch(()=>{});
+        } else if ('mediaSession' in navigator && e.target.duration) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: e.target.duration,
+              playbackRate: e.target.playbackRate,
+              position: e.target.currentTime
+            });
+          } catch(err) {}
+        }
       }
     };
 
@@ -474,6 +505,50 @@ export default function App() {
         }
       });
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (IS_NATIVE) {
+      MediaSession.setPlaybackState({ playbackState: isPlaying ? 'playing' : 'paused' }).catch(()=>{});
+    } else if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+  }, [isPlaying]);
+
+  const toggleShuffle = () => {
+    setShuffle(!shuffle);
+    if (IS_NATIVE) Haptics.impact({ style: ImpactStyle.Light }).catch(()=>{});
+  };
+  const toggleRepeat = () => {
+    setRepeat(!repeat);
+    if (IS_NATIVE) Haptics.impact({ style: ImpactStyle.Light }).catch(()=>{});
+  };
+
+  // Track online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => {
+      setIsOffline(true);
+      // Fetch cached IDs so we know what's playable offline
+      getAllCachedAudioIds().then(ids => setCachedTrackIds(ids)).catch(console.warn);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial check
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      handleOffline();
+    } else {
+      // Even if online, load cached IDs so we can show instant-play badges if we wanted to
+      getAllCachedAudioIds().then(ids => setCachedTrackIds(ids)).catch(console.warn);
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   // Update volume
@@ -510,6 +585,7 @@ export default function App() {
     if (loggedIn && userMode === 'local') {
       loadLocalData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn, userMode]);
 
   const loadLocalData = async () => {
@@ -712,6 +788,33 @@ export default function App() {
           
           preloadedUrlsRef.current[track.id] = streamResult.blobUrl;
           playUrl = streamResult.blobUrl;
+          
+          // The Seamless Handoff: If this is a preview chunk, play it instantly and fetch full track
+          if (streamResult.isPreview) {
+            setTimeout(async () => {
+              try {
+                const fullStreamResult = await getStreamUrlForTrack(track, 1, null, true); // bypassPreview = true
+                if (fullStreamResult && fullStreamResult.blobUrl && currentTrackRef.current?.id === track.id) {
+                  console.log('[Handoff] Full track downloaded, swapping audio seamlessly!');
+                  const activeAudio = audioElementsRef.current[activeIndexRef.current];
+                  const inactiveAudio = audioElementsRef.current[1 - activeIndexRef.current];
+                  
+                  inactiveAudio.src = fullStreamResult.blobUrl;
+                  inactiveAudio.currentTime = activeAudio.currentTime;
+                  await inactiveAudio.play();
+                  
+                  activeAudio.pause();
+                  activeIndexRef.current = 1 - activeIndexRef.current;
+                  audioRef.current = inactiveAudio;
+                  
+                  // Replace preloaded URL with full URL
+                  preloadedUrlsRef.current[track.id] = fullStreamResult.blobUrl;
+                }
+              } catch (e) {
+                console.warn('[Handoff] Failed to fetch full track in background:', e);
+              }
+            }, 100);
+          }
 
           // Extract ID3 tags from blob in the background so we don't block playback!
           if (streamResult.blob && !track.localChecked) { // Using localChecked as a general flag that tags were extracted
@@ -878,6 +981,9 @@ export default function App() {
     if (!currentTrack) return;
     if (loadingTrack) return; // Prevent playing old track while fetching new one
     
+    if (IS_NATIVE) {
+      Haptics.impact({ style: ImpactStyle.Light }).catch(()=>{});
+    }
     if (isPlaying) {
       setIsPlaying(false);
       await tweenVolume(audioRef.current, 0, 300);
@@ -935,6 +1041,9 @@ export default function App() {
   const handleNextTrack = async () => {
     if (tracks.length === 0) return;
     if (loadingTrack) return; // Prevent skipping multiple times while loading
+    if (IS_NATIVE) {
+      Haptics.impact({ style: ImpactStyle.Light }).catch(()=>{});
+    }
 
     if (currentTrack && currentTime < 30 && isPlaying) {
       const syncConfig = {
@@ -974,7 +1083,43 @@ export default function App() {
 
   // Media Session API for hardware media keys
   useEffect(() => {
-    if ('mediaSession' in navigator) {
+    if (IS_NATIVE) {
+      MediaSession.setActionHandler({ action: 'play' }, () => {
+        if (handlersRef.current.handlePlayPauseToggle) handlersRef.current.handlePlayPauseToggle();
+      });
+      MediaSession.setActionHandler({ action: 'pause' }, () => {
+        if (handlersRef.current.handlePlayPauseToggle) handlersRef.current.handlePlayPauseToggle();
+      });
+      MediaSession.setActionHandler({ action: 'previoustrack' }, () => {
+        if (handlersRef.current.handlePrevTrack) handlersRef.current.handlePrevTrack();
+      });
+      MediaSession.setActionHandler({ action: 'nexttrack' }, () => {
+        if (handlersRef.current.handleNextTrack) handlersRef.current.handleNextTrack();
+      });
+      MediaSession.setActionHandler({ action: 'seekbackward' }, (details) => {
+        if (handlersRef.current.loadingTrack) return;
+        const skipTime = details.seekOffset || 10;
+        if (audioRef.current) {
+           audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - skipTime);
+           setCurrentTime(audioRef.current.currentTime);
+        }
+      });
+      MediaSession.setActionHandler({ action: 'seekforward' }, (details) => {
+        if (handlersRef.current.loadingTrack) return;
+        const skipTime = details.seekOffset || 10;
+        if (audioRef.current) {
+           audioRef.current.currentTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + skipTime);
+           setCurrentTime(audioRef.current.currentTime);
+        }
+      });
+      MediaSession.setActionHandler({ action: 'seekto' }, (details) => {
+        if (handlersRef.current.loadingTrack) return;
+        if (audioRef.current) {
+          audioRef.current.currentTime = details.seekTime;
+          setCurrentTime(details.seekTime);
+        }
+      });
+    } else if ('mediaSession' in navigator) {
       navigator.mediaSession.setActionHandler('play', () => {
         if (handlersRef.current.handlePlayPauseToggle) handlersRef.current.handlePlayPauseToggle();
       });
@@ -1053,15 +1198,27 @@ export default function App() {
 
   // Set the MediaSession API metadata when track changes
   useEffect(() => {
-    if ('mediaSession' in navigator && currentTrack) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentTrack.title || currentTrack.name || 'Unknown Track',
-        artist: currentTrack.artist || 'Unknown Artist',
-        album: currentTrack.album || 'Unknown Album',
-        artwork: currentTrack.artwork ? [
-          { src: currentTrack.artwork, sizes: '512x512' }
-        ] : []
-      });
+    if (currentTrack) {
+      document.title = `▶ ${currentTrack.title || 'Unknown'} - ${currentTrack.artist || 'Unknown'}`;
+      if (IS_NATIVE) {
+        MediaSession.setMetadata({
+          title: currentTrack.title || currentTrack.name || 'Unknown Track',
+          artist: currentTrack.artist || 'Unknown Artist',
+          album: currentTrack.album || 'Unknown Album',
+          artwork: currentTrack.artwork ? currentTrack.artwork : ''
+        }).catch(()=>{});
+      } else if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: currentTrack.title || currentTrack.name || 'Unknown Track',
+          artist: currentTrack.artist || 'Unknown Artist',
+          album: currentTrack.album || 'Unknown Album',
+          artwork: currentTrack.artwork ? [
+            { src: currentTrack.artwork, sizes: '512x512' }
+          ] : []
+        });
+      }
+    } else {
+      document.title = 'Reson8';
     }
 
     // Dynamic theming
@@ -1069,7 +1226,6 @@ export default function App() {
       facRef.current.getColorAsync(currentTrack.artwork)
         .then(color => {
           const isDark = color.isDark;
-          const dominantHex = color.hex;
           const adjustedHex = isDark ? color.hex : '#D24A61'; // Fallback if too bright
           document.documentElement.style.setProperty('--accent-rose', adjustedHex);
           document.documentElement.style.setProperty('--bg-gradient-top', `rgba(${color.value[0]}, ${color.value[1]}, ${color.value[2]}, 0.15)`);
@@ -1089,6 +1245,9 @@ export default function App() {
   const handlePrevTrack = () => {
     if (loadingTrack) return;
     if (!audioRef.current) return;
+    if (IS_NATIVE) {
+      Haptics.impact({ style: ImpactStyle.Light }).catch(()=>{});
+    }
 
     if (audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
@@ -1185,7 +1344,7 @@ export default function App() {
   };
 
   const handleClearLibrary = async () => {
-    if (window.confirm("Are you sure you want to clear your entire library? This cannot be undone.")) {
+        if (window.confirm("Are you sure you want to clear your entire library? This cannot be undone.")) {
       setTracks([]);
       if (userMode === 'local' || userMode === 'shared') {
         await saveTracks([]);
@@ -1193,9 +1352,45 @@ export default function App() {
     }
   };
 
+  const handleUpdateTrack = async (trackId, updates) => {
+    const updatedTracks = tracks.map(t => t.id === trackId ? { ...t, ...updates } : t);
+    setTracks(updatedTracks);
+    const updatedTrack = updatedTracks.find(t => t.id === trackId);
+    if (updatedTrack) {
+      await saveTrack(updatedTrack);
+    }
+  };
+
   if (!loggedIn) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
+
+  if (isFetchingLibrary && IS_NATIVE) {
+    return <SplashScreen />;
+  }
+
+  // Pre-process tracks to inject macroGenre for fast filtering
+  const tracksWithMacro = tracks.map(t => ({
+    ...t,
+    macroGenre: normalizeGenre(t.genre, t.artist, t.title)
+  }));
+
+  // Strict Mode Filtering:
+  // 1. If Local Mode, BLOCK all Shared Mode (Cloud) tracks.
+  // 2. If Shared Mode & Offline, ONLY show Shared tracks that are in the IDB offline cache.
+  const displayTracks = tracksWithMacro.filter(t => {
+    if (userMode === 'local' && t.source === 'shared') return false;
+    if (userMode === 'shared' && isOffline && t.source === 'shared' && !cachedTrackIds.has(t.id)) return false;
+    return true;
+  });
+
+  const spaces = ['All Songs', ...new Set(displayTracks.map(t => t.macroGenre))].sort();
+  // "All Songs" goes first, others alphabetical
+  const finalSpaces = spaces.sort((a, b) => a === 'All Songs' ? -1 : b === 'All Songs' ? 1 : a.localeCompare(b));
+  
+  const filteredTracks = (currentSpace === 'All Songs' || currentSpace === 'All' || currentSpace === null)
+    ? displayTracks 
+    : displayTracks.filter(t => t.macroGenre === currentSpace);
 
   return (
     <div className="app-shell">
@@ -1212,29 +1407,42 @@ export default function App() {
           onLogout={handleLogout}
           onTracksImported={handleTracksImported}
           onRefreshLibrary={handleRefreshLibrary}
+          spaces={finalSpaces}
+          currentSpace={currentSpace}
+          setCurrentSpace={setCurrentSpace}
         />
-        <MainView 
+        {(currentSpace === null && IS_NATIVE) ? (
+          <CategoryLanding 
+            spaces={finalSpaces} 
+            onSelectCategory={setCurrentSpace}
+            setCurrentTab={setCurrentTab}
+          />
+        ) : (
+          <MainView 
             currentTab={currentTab}
-            tracks={tracks}
+            tracks={filteredTracks}
             isLoadingTracks={isFetchingLibrary}
             playlists={playlists}
-          activePlaylistId={activePlaylistId}
-          onPlayTrack={handlePlayTrack}
-          onAddToPlaylist={handleAddToPlaylist}
-          onCreatePlaylist={handleCreatePlaylist}
-          onUpdatePlaylist={handleUpdatePlaylist}
-          currentTrack={currentTrack}
-          userProfile={userProfile}
-          userMode={userMode}
-          onLogout={handleLogout}
-          onTracksImported={handleTracksImported}
-          onRefreshLibrary={handleRefreshLibrary}
-          onClearLibrary={handleClearLibrary}
-          audioQuality={audioQuality}
-          setAudioQuality={setAudioQuality}
-          setCurrentTab={setCurrentTab}
-          setActivePlaylistId={setActivePlaylistId}
-        />
+            activePlaylistId={activePlaylistId}
+            onPlayTrack={handlePlayTrack}
+            onAddToPlaylist={handleAddToPlaylist}
+            onCreatePlaylist={handleCreatePlaylist}
+            onUpdatePlaylist={handleUpdatePlaylist}
+            currentTrack={currentTrack}
+            userProfile={userProfile}
+            userMode={userMode}
+            onLogout={handleLogout}
+            onTracksImported={handleTracksImported}
+            onRefreshLibrary={handleRefreshLibrary}
+            onClearLibrary={handleClearLibrary}
+            onUpdateTrack={handleUpdateTrack}
+            audioQuality={audioQuality}
+            setAudioQuality={setAudioQuality}
+            setCurrentTab={setCurrentTab}
+            setActivePlaylistId={setActivePlaylistId}
+            isOffline={isOffline}
+          />
+        )}
       </div>
       <PlayerBar
         currentTrack={currentTrack}
@@ -1276,8 +1484,8 @@ export default function App() {
           onPrev={handlePrevTrack}
           onSeek={handleSeek}
           onVolumeChange={setVolume}
-          setShuffle={setShuffle}
-          setRepeat={setRepeat}
+          setShuffle={toggleShuffle}
+          setRepeat={toggleRepeat}
           setAutoNext={setAutoNext}
         />
       )}

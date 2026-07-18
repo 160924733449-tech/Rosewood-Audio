@@ -1,5 +1,6 @@
 import { APPS_SCRIPT_URL } from '../config';
 import { getAudioFromCache, saveAudioToCache } from './storageCacheHelper';
+import { getAudioBlobFromIDB, saveAudioBlobToIDB } from './db';
 /**
  * Map of file extensions to proper MIME types.
  * This prevents playback failures caused by incorrect MIME types when creating audio Blobs.
@@ -159,28 +160,109 @@ function base64ToUint8Array(base64) {
 }
 
 /**
- * Returns a playable blob: URL for a shared Google Drive audio file.
- * The Apps Script encodes the raw audio bytes as base64 text (via Utilities.base64Encode).
- * We decode the base64 response back to binary, wrap it in a Blob with the correct MIME type,
- * and return a blob: URL the audio element can play.
+ * Fetches only the first ~600KB (30 seconds) of a track from Apps Script.
+ * Saves it as a preview chunk to IDB for instant playback.
+ */
+export async function cachePreviewChunk(track) {
+  if (!track.driveFileId) return false;
+  
+  try {
+    // Skip if we already have the full file or the preview
+    const existingFull = await getAudioBlobFromIDB(track.id);
+    if (existingFull && existingFull.blob) return true;
+    
+    const existingPreview = await getAudioBlobFromIDB(track.id + '_preview');
+    if (existingPreview && existingPreview.blob) return true;
+
+    const streamUrl = `${APPS_SCRIPT_URL}?action=stream&id=${track.driveFileId}`;
+    const response = await fetch(streamUrl);
+    
+    if (!response.ok || !response.body) return false;
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let base64String = '';
+    const TARGET_SIZE = 800000; // ~600KB of base64 text
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      base64String += decoder.decode(value, { stream: true });
+      if (base64String.length >= TARGET_SIZE) {
+        // We have enough data! Abort the rest.
+        reader.cancel();
+        break;
+      }
+    }
+    
+    base64String += decoder.decode(); // flush
+
+    if (base64String.length < 1000) return false;
+
+    const bytes = base64ToUint8Array(base64String);
+    const mimeType = getMimeType(track.name, track.mime);
+    const blob = new Blob([bytes], { type: mimeType });
+    
+    await saveAudioBlobToIDB(track.id + '_preview', blob, mimeType);
+    console.log(`[Cache] Downloaded preview chunk for ${track.title} (${(bytes.length / 1024).toFixed(0)} KB)`);
+    return true;
+  } catch (err) {
+    console.warn(`[Cache] Failed to fetch preview for ${track.title}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Gets a blob URL for a given track, using fallbacks:
+ * 1. Native Offline Cache (IDB) (Instant)
+ * 2. Native Offline Cache Preview Chunk (Instant)
+ * 3. Firebase Storage CDN (Fast)
+ * 4. Google Apps Script Base64 Decoder (Slow)
  *
  * Includes 1 automatic retry for transient network / Apps Script failures.
  * Returns null quickly for files the Apps Script can't serve (e.g., 0-byte / unindexed files)
  * so the caller can auto-skip to the next track without long delays.
  */
-export async function getStreamUrlForTrack(track, retries = 1, abortSignal = null) {
+export async function getStreamUrlForTrack(track, retries = 1, abortSignal = null, bypassPreview = false) {
   if (!track.driveFileId) {
-    return { blobUrl: track.url, blob: null };
+    return { blobUrl: track.url, blob: null, isPreview: false };
   }
 
-  // 1. Check Firebase Storage cache first (Fast Path)
+  // 1. Check Local Native Offline Cache first (Instant, zero-bandwidth Path)
+  try {
+    const localCache = await getAudioBlobFromIDB(track.id);
+    if (localCache && localCache.blob) {
+      console.log(`[Stream] LOCAL CACHE HIT for ${track.name}. Playing offline instantly.`);
+      return { blobUrl: URL.createObjectURL(localCache.blob), artworkUrl: null, blob: localCache.blob, isPreview: false };
+    }
+    
+    if (!bypassPreview) {
+      const previewCache = await getAudioBlobFromIDB(track.id + '_preview');
+      if (previewCache && previewCache.blob) {
+        console.log(`[Stream] PREVIEW CACHE HIT for ${track.name}. Playing instantly while fetching full track.`);
+        return { blobUrl: URL.createObjectURL(previewCache.blob), artworkUrl: null, blob: previewCache.blob, isPreview: true };
+      }
+    }
+  } catch (err) {
+    console.warn('[Stream] Local cache read failed, falling back:', err);
+  }
+
+  // 2. Check Firebase Storage cache (Fast Network Path)
   const cachedData = await getAudioFromCache(track.id);
   if (cachedData && cachedData.url) {
     console.log(`[Stream] Cache hit for ${track.name}. Streaming from Firebase Storage.`);
+    
+    // Background cache it locally so next time it's instant & offline
+    fetch(cachedData.url)
+      .then(res => res.blob())
+      .then(blob => saveAudioBlobToIDB(track.id, blob, blob.type))
+      .catch(err => console.warn('[Stream] Failed to background cache Firebase stream:', err));
+
     return { blobUrl: cachedData.url, artworkUrl: cachedData.artworkUrl, blob: null };
   }
 
-  // 2. Fallback to slow Apps Script Base64 fetch
+  // 3. Fallback to slow Apps Script Base64 fetch
   const streamUrl = `${APPS_SCRIPT_URL}?action=stream&id=${track.driveFileId}`;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -241,6 +323,9 @@ export async function getStreamUrlForTrack(track, retries = 1, abortSignal = nul
 
       console.log(`[Stream] Successfully decoded track: ${track.name} (${(bytes.length / 1024 / 1024).toFixed(1)} MB, MIME: ${mimeType})`);
       
+      // Save to Native Offline Cache (IDB) for instant offline playback next time
+      saveAudioBlobToIDB(track.id, blob, mimeType).catch(err => console.warn("Failed to local-cache:", err));
+
       // Save to Firebase Storage cache in the background
       saveAudioToCache(track.id, blob, mimeType).catch(err => console.warn("Failed to cache audio in background:", err));
 

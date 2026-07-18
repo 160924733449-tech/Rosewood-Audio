@@ -4,6 +4,8 @@ import { getRecommendations, getTopMatches } from '../utils/recommendationEngine
 import { SkeletonTrackList } from './SkeletonTrack';
 import { useContextMenu } from './ContextMenu';
 import { triggerFileSelect } from '../utils/fileSystemHelper';
+import { getStreamUrlForTrack } from '../utils/sharedLibraryHelper';
+import { enforceCacheLimit } from '../utils/db';
 
 export default function MainView({
   currentTab,
@@ -24,8 +26,10 @@ export default function MainView({
   onTracksImported,
   onRefreshLibrary,
   onClearLibrary,
+  onUpdateTrack,
   audioQuality,
-  setAudioQuality
+  setAudioQuality,
+  isOffline
 }) {
   const [recommendations, setRecommendations] = useState({ dailyMix: [], similarTracks: [], forgottenGems: [] });
   const [topMatches, setTopMatches] = useState([]);
@@ -34,7 +38,41 @@ export default function MainView({
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [editingPlaylistId, setEditingPlaylistId] = useState(null);
   const [editPlaylistName, setEditPlaylistName] = useState('');
+  const [syncingOffline, setSyncingOffline] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
   const { openMenu } = useContextMenu();
+
+  const handleOfflineSync = async () => {
+    if (syncingOffline || isOffline) return;
+    const cloudTracks = tracks.filter(t => t.source === 'shared');
+    if (cloudTracks.length === 0) return;
+
+    setSyncingOffline(true);
+    setSyncProgress(0);
+    
+    // Sync top 20 tracks (roughly 100MB)
+    const tracksToSync = cloudTracks.slice(0, 20);
+    let completed = 0;
+
+    for (const track of tracksToSync) {
+      try {
+        // getStreamUrlForTrack natively saves to IDB on success and checks cache first
+        await getStreamUrlForTrack(track, 1);
+      } catch (e) {
+        console.warn('Sync failed for', track.name, e);
+      }
+      completed++;
+      setSyncProgress(Math.round((completed / tracksToSync.length) * 100));
+    }
+    
+    // Enforce 250MB limit
+    try { await enforceCacheLimit(250 * 1024 * 1024); } catch (e) {}
+    
+    setTimeout(() => {
+      setSyncingOffline(false);
+      setSyncProgress(0);
+    }, 2000);
+  };
 
   const openPlaylistEdit = (pl) => {
     setEditingPlaylistId(pl.id);
@@ -165,6 +203,10 @@ export default function MainView({
                 onContextMenu={(e) => openMenu(e, [
                   { label: 'Play Now', icon: <Play size={14} />, action: (track) => onPlayTrack(track, trackList) },
                   { label: 'Add to Playlist', icon: <FolderPlus size={14} />, action: (track) => setOpenDropdownId(openDropdownId === track.id ? null : track.id) },
+                  { label: 'Assign to Space...', icon: <Settings size={14} />, action: (track) => {
+                    const newSpace = window.prompt('Assign this track to a Space (e.g., Bollywood, Chill, Pop):', track.genre);
+                    if (newSpace) onUpdateTrack(track.id, { genre: newSpace });
+                  }}
                 ], t)}
               >
                 <td className="track-number-cell">
@@ -268,6 +310,10 @@ export default function MainView({
                     onClick={(e) => openMenu(e, [
                       { label: 'Play Now', icon: <Play size={14} />, action: (track) => onPlayTrack(track, trackList) },
                       { label: 'Add to Playlist', icon: <FolderPlus size={14} />, action: (track) => setOpenDropdownId(openDropdownId === track.id ? null : track.id) },
+                      { label: 'Assign to Space...', icon: <Settings size={14} />, action: (track) => {
+                        const newSpace = window.prompt('Assign this track to a Space (e.g., Bollywood, Chill, Pop):', track.genre);
+                        if (newSpace) onUpdateTrack(track.id, { genre: newSpace });
+                      }}
                     ], t)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', padding: '8px' }}
                   >
@@ -295,29 +341,47 @@ export default function MainView({
           </div>
 
           {tracks.length === 0 ? (
-            <div className="import-prompt">
-              <FolderPlus className="import-icon" size={64} />
-              <h2>Your library is empty.</h2>
-              <p style={{ color: 'var(--text-secondary)', maxWidth: '360px', marginTop: '10px', lineHeight: '1.65' }}>
-                Point Reson8 to a folder on your hard drive and every song inside will be scanned, organised, and ready to play.
-              </p>
-              {userMode === 'local' && (
-                <button 
-                  className="import-btn"
-                  onClick={handleImportMusic}
-                >
-                  Import Music
-                </button>
-              )}
-              {userMode === 'shared' && (
-                <button 
-                  className="import-btn"
-                  onClick={onRefreshLibrary}
-                >
-                  Refresh Library
-                </button>
-              )}
-            </div>
+            isOffline ? (
+              <div className="import-prompt">
+                <FolderPlus className="import-icon" size={64} style={{ opacity: 0.5 }} />
+                <h2>You are offline.</h2>
+                <p style={{ color: 'var(--text-secondary)', maxWidth: '360px', marginTop: '10px', lineHeight: '1.65' }}>
+                  Cloud music is hidden while offline. Please connect to the internet or point Reson8 to a local folder to play music offline.
+                </p>
+                {userMode === 'local' && (
+                  <button 
+                    className="import-btn"
+                    onClick={handleImportMusic}
+                  >
+                    Import Offline Music
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="import-prompt">
+                <FolderPlus className="import-icon" size={64} />
+                <h2>Your library is empty.</h2>
+                <p style={{ color: 'var(--text-secondary)', maxWidth: '360px', marginTop: '10px', lineHeight: '1.65' }}>
+                  Point Reson8 to a folder on your hard drive and every song inside will be scanned, organised, and ready to play.
+                </p>
+                {userMode === 'local' && (
+                  <button 
+                    className="import-btn"
+                    onClick={handleImportMusic}
+                  >
+                    Import Music
+                  </button>
+                )}
+                {userMode === 'shared' && (
+                  <button 
+                    className="import-btn"
+                    onClick={onRefreshLibrary}
+                  >
+                    Refresh Library
+                  </button>
+                )}
+              </div>
+            )
           ) : (
             <>
               <div className="section-header">
@@ -355,7 +419,32 @@ export default function MainView({
           <div className="section-header library-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
               <h2>Your Collection</h2>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tracks.length} Songs Loaded</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {userMode === 'shared' && !isOffline && tracks.length > 0 && (
+                  <button 
+                    onClick={handleOfflineSync}
+                    disabled={syncingOffline}
+                    style={{
+                      background: syncingOffline ? 'var(--bg-surface)' : 'var(--gradient-accent)',
+                      border: 'none',
+                      color: syncingOffline ? 'var(--text-secondary)' : '#fff',
+                      padding: '6px 12px',
+                      borderRadius: '100px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: syncingOffline ? 'default' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <Download size={12} className={syncingOffline && syncProgress < 100 ? 'spin' : ''} />
+                    {syncingOffline ? (syncProgress === 100 ? 'Synced!' : `Syncing... ${syncProgress}%`) : 'Sync Offline'}
+                  </button>
+                )}
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tracks.length} Songs Loaded</span>
+              </div>
             </div>
             <div style={{ width: '100%', position: 'relative' }}>
               <input 
@@ -410,10 +499,16 @@ export default function MainView({
           </div>
 
           {tracks.length === 0 ? (
-            <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '80px 0' }}>
-              Import a music folder to unlock personalised recommendations.
-              Reson8 learns your taste quietly — no ratings, no stars.
-            </div>
+            isOffline ? (
+              <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '80px 0' }}>
+                You are offline. Recommendations are based on your local library which is currently empty.
+              </div>
+            ) : (
+              <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '80px 0' }}>
+                Import a music folder to unlock personalised recommendations.
+                Reson8 learns your taste quietly — no ratings, no stars.
+              </div>
+            )
           ) : (
             <>
               <h3 style={{ fontSize: '15px', fontWeight: '700', margin: '28px 0 16px', color: 'var(--text-primary)' }}>Today's Listening</h3>

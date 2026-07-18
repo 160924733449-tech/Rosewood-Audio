@@ -85,11 +85,9 @@ export default function LoginScreen({ onLoginSuccess }) {
       {/* Left — Brand Panel */}
       <div className="login-brand-panel">
         <div className="brand-panel-inner">
-          <div className="brand-lockup">
-            <div className="brand-icon-wrap" style={{ padding: 0, background: 'transparent' }}>
-              <img src="/icon.png" alt="Reson8 Logo" style={{ width: '64px', height: '64px', objectFit: 'contain', transform: 'scale(1.5)' }} />
-            </div>
-            <span className="brand-wordmark">Reson8</span>
+          <div className="brand-lockup" style={{ gap: '24px' }}>
+            <img src="/icon.png" alt="Reson8 Logo" style={{ width: '72px', height: '72px', objectFit: 'contain', transform: 'scale(1.4)', marginLeft: '-8px' }} />
+            <span className="brand-wordmark" style={{ zIndex: 10 }}>Reson8</span>
           </div>
 
           <div className="brand-hero-text">

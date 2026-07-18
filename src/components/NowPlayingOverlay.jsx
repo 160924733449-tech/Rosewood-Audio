@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Zap, Loader2 } from 'lucide-react';
+import { ChevronDown, Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Loader2 } from 'lucide-react';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import AudioVisualizer from './AudioVisualizer';
 import LyricsBoard from './LyricsBoard';
@@ -16,7 +16,6 @@ export default function NowPlayingOverlay({
   volume,
   repeat,
   shuffle,
-  autoNext,
   onClose,
   onPlayPauseToggle,
   onNext,
@@ -24,12 +23,10 @@ export default function NowPlayingOverlay({
   onSeek,
   onVolumeChange,
   setShuffle,
-  setRepeat,
-  setAutoNext
+  setRepeat
 }) {
   const [isClosing, setIsClosing] = useState(false);
   const [lyrics, setLyrics] = useState(null);
-  const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
   const [albumColor, setAlbumColor] = useState('var(--accent-rose)');
   
   const timelineRef = useRef(null);
@@ -118,7 +115,6 @@ export default function NowPlayingOverlay({
     const getLyrics = async () => {
       if (track && track.title && track.artist) {
         setLyrics(null);
-        setIsLoadingLyrics(true);
         const data = await fetchLyrics(track.title, track.artist);
         if (active) {
           if (data && data.syncedLyrics) {
@@ -126,7 +122,6 @@ export default function NowPlayingOverlay({
           } else {
             setLyrics([]); // Empty array means no synced lyrics found
           }
-          setIsLoadingLyrics(false);
         }
       }
     };

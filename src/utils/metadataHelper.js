@@ -98,10 +98,55 @@ export async function fetchITunesMetadata(artist, title) {
         year: result.releaseDate ? result.releaseDate.substring(0, 4) : null
       };
 
+      }
+    } catch (error) {
+      console.warn("iTunes fetch failed:", error);
     }
-  } catch (error) {
-    console.error('Failed to fetch iTunes metadata:', error);
-  }
-  return null;
+    return null;
 }
 
+/**
+ * Normalizes messy ID3 genre strings into clean Macro-Categories (Spotify-style)
+ */
+export function normalizeGenre(rawGenre, artist = '', title = '') {
+  const g = (rawGenre || '').toLowerCase();
+  const a = (artist || '').toLowerCase();
+  
+  // 1. Bollywood & Desi
+  const isDesiGenre = g.includes('bollywood') || g.includes('hindi') || g.includes('indian') || g.includes('desi') || g.includes('punjabi');
+  const desiArtists = ['arijit', 'shreya', 'rahman', 'pritam', 'badshah', 'neha kakkar', 'sonu nigam', 'kishore', 'lata', 'armaan', 'jubin', 'shankar', 'vishal', 'darshan'];
+  const isDesiArtist = desiArtists.some(name => a.includes(name));
+  if (isDesiGenre || isDesiArtist) return 'Bollywood & Desi';
+  
+  // 2. K-Pop
+  const isKpopGenre = g.includes('k-pop') || g.includes('kpop') || g.includes('korean');
+  const kpopArtists = ['bts', 'blackpink', 'twice', 'stray kids', 'newjeans', 'seventeen', 'txt', 'enhypen', 'aespa', 'exo', 'red velvet', 'jung kook', 'jimin'];
+  const isKpopArtist = kpopArtists.some(name => a.includes(name));
+  if (isKpopGenre || isKpopArtist) return 'K-Pop';
+  
+  // 3. Electronic & Chill
+  const isElectronicGenre = g.includes('electronic') || g.includes('dance') || g.includes('house') || g.includes('techno') || g.includes('edm') || g.includes('lo-fi') || g.includes('lofi');
+  const electronicArtists = ['daft punk', 'skrillex', 'deadmau5', 'avicii', 'marshmello', 'kygo', 'tiesto', 'david guetta', 'calvin harris', 'alan walker'];
+  const isElectronicArtist = electronicArtists.some(name => a.includes(name));
+  if (isElectronicGenre || isElectronicArtist) return 'Electronic & Chill';
+
+  // 4. Hip-Hop & R&B
+  const isHipHopGenre = g.includes('hip-hop') || g.includes('hip hop') || g.includes('rap') || g.includes('r&b');
+  const hiphopArtists = ['drake', 'eminem', 'kanye', 'kendrick', 'travis scott', 'j. cole', 'post malone', 'the weeknd', 'sza', 'frank ocean'];
+  const isHipHopArtist = hiphopArtists.some(name => a.includes(name));
+  if (isHipHopGenre || isHipHopArtist) return 'Hip-Hop & R&B';
+  
+  // 5. Hollywood & Pop
+  const isWesternGenre = g.includes('pop') || g.includes('rock') || g.includes('english') || g.includes('hollywood') || g.includes('alternative') || g.includes('indie');
+  const westernArtists = ['taylor swift', 'ed sheeran', 'justin bieber', 'dua lipa', 'ariana grande', 'billie eilish', 'harry styles', 'bruno mars', 'maroon 5', 'coldplay', 'imagine dragons'];
+  const isWesternArtist = westernArtists.some(name => a.includes(name));
+  if (isWesternGenre || isWesternArtist) return 'Hollywood & Pop';
+  
+  // If we can't safely macro-categorize it, just return 'All Songs' or the raw genre if it's short
+  if (g.length > 2 && g.length < 15) {
+    // Capitalize first letter of each word
+    return rawGenre.replace(/\b\w/g, l => l.toUpperCase());
+  }
+  
+  return 'Global';
+}

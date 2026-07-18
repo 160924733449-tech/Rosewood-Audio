@@ -1,5 +1,5 @@
 const DB_NAME = 'AuraPlayerDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export function openDB() {
   return new Promise((resolve, reject) => {
@@ -38,7 +38,98 @@ export function openDB() {
       if (!db.objectStoreNames.contains('affinity')) {
         db.createObjectStore('affinity', { keyPath: 'key' });
       }
+
+      // Store raw offline audio blobs for native playback
+      if (!db.objectStoreNames.contains('audioBlobs')) {
+        const audioStore = db.createObjectStore('audioBlobs', { keyPath: 'id' });
+        audioStore.createIndex('timestamp', 'timestamp', { unique: false });
+      }
     };
+  });
+}
+
+// Audio Blob operations (Offline Cache)
+export async function saveAudioBlobToIDB(id, blob, mimeType) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('audioBlobs', 'readwrite');
+    const store = tx.objectStore('audioBlobs');
+    const request = store.put({
+      id,
+      blob,
+      mimeType,
+      size: blob.size,
+      timestamp: Date.now()
+    });
+    
+    // Automatically enforce a rough cache limit (e.g. 250MB)
+    // To keep it simple without blocking, we just resolve when put succeeds.
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getAudioBlobFromIDB(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('audioBlobs', 'readwrite'); // readwrite so we can update timestamp
+    const store = tx.objectStore('audioBlobs');
+    const request = store.get(id);
+    
+    request.onsuccess = () => {
+      if (request.result) {
+        // Update access timestamp for LRU cache eviction logic later
+        const updatedRecord = { ...request.result, timestamp: Date.now() };
+        store.put(updatedRecord);
+        resolve(updatedRecord);
+      } else {
+        resolve(null);
+      }
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getAllCachedAudioIds() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('audioBlobs', 'readonly');
+    const store = tx.objectStore('audioBlobs');
+    const request = store.getAllKeys();
+    
+    request.onsuccess = () => {
+      resolve(new Set(request.result || []));
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Enforce cache limit (250MB default)
+export async function enforceCacheLimit(maxBytes = 250 * 1024 * 1024) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('audioBlobs', 'readwrite');
+    const store = tx.objectStore('audioBlobs');
+    const index = store.index('timestamp');
+    const request = index.getAll();
+    
+    request.onsuccess = () => {
+      let records = request.result || [];
+      // Sort oldest to newest (index.getAll usually sorts by the indexed key, but let's be explicit)
+      records.sort((a, b) => a.timestamp - b.timestamp);
+      
+      let totalSize = records.reduce((sum, r) => sum + (r.size || 0), 0);
+      let deletedCount = 0;
+      
+      while (totalSize > maxBytes && records.length > 0) {
+        const oldest = records.shift();
+        store.delete(oldest.id);
+        totalSize -= (oldest.size || 0);
+        deletedCount++;
+      }
+      resolve({ totalSize, deletedCount });
+    };
+    request.onerror = () => reject(request.error);
   });
 }
 

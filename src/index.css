@@ -35,6 +35,7 @@
   padding: 0;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -109,6 +110,9 @@ body {
   width: 100vw;
   overflow: hidden;
   background-color: var(--bg-deep);
+  color: var(--text-primary);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Left brand panel */
@@ -1352,6 +1356,7 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
 }
 
 .overlay-placeholder-art {
@@ -1797,6 +1802,10 @@ body {
   /* Layout Adjustments */
   .app-shell {
     flex-direction: column;
+    padding: 0 !important;
+    gap: 0 !important;
+    padding-top: env(safe-area-inset-top, 24px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
 
   .sidebar {
@@ -1995,7 +2004,8 @@ body {
   }
 
   .now-playing-overlay .overlay-art-container {
-    padding-top: 20px;
+    padding-top: 0;
+    margin-top: 20px;
     display: flex;
     justify-content: center;
   }
@@ -2192,5 +2202,228 @@ body {
 
   .overlay-track-artist {
     font-size: 18px;
+  }
+}
+/* =========================================
+   Splash Screen & Category Landing UI
+========================================= */
+
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--surface-0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  color: var(--text-primary);
+}
+
+.splash-content {
+  text-align: center;
+  animation: fadeIn 0.8s ease-out;
+}
+
+.splash-icon-wrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  border-radius: 50%;
+  box-shadow: 0 0 40px rgba(var(--primary-color-rgb, 120,120,255), 0.3);
+}
+
+.splash-icon {
+  color: white;
+  z-index: 2;
+}
+
+.splash-pulse {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  border: 2px solid var(--primary-color);
+  animation: splashPulse 2s infinite ease-out;
+}
+
+@keyframes splashPulse {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.splash-title {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  margin: 0 0 12px;
+  background: linear-gradient(to right, #fff, rgba(255,255,255,0.6));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.splash-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+/* Category Landing Page */
+.category-landing {
+  flex: 1;
+  overflow-y: auto;
+  padding: 48px;
+  background: linear-gradient(180deg, rgba(var(--primary-color-rgb, 120,120,255), 0.1) 0%, var(--surface-0) 100%);
+}
+
+.category-header {
+  margin-bottom: 48px;
+}
+
+.category-title {
+  font-size: 3rem;
+  font-weight: 800;
+  margin: 0 0 12px;
+  letter-spacing: -0.03em;
+}
+
+.category-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.category-card {
+  position: relative;
+  border-radius: 16px;
+  padding: 32px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.category-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.8) 100%);
+  z-index: 1;
+}
+
+.category-icon-bg {
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  color: rgba(255,255,255,0.1);
+  transform: rotate(-15deg) scale(2.5);
+  transition: transform 0.5s ease;
+  z-index: 0;
+}
+
+.category-card:hover .category-icon-bg {
+  transform: rotate(0deg) scale(3);
+}
+
+.category-content {
+  position: relative;
+  z-index: 2;
+}
+
+.category-content h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: white;
+}
+
+.category-content p {
+  color: rgba(255,255,255,0.7);
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.category-play-btn {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+}
+
+.category-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 16px 32px rgba(0,0,0,0.3);
+}
+
+.category-card:hover .category-play-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.all-songs-card { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+.macro-card.index-0 { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+.macro-card.index-1 { background: linear-gradient(135deg, #10b981, #3b82f6); }
+.macro-card.index-2 { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+.macro-card.index-3 { background: linear-gradient(135deg, #14b8a6, #0ea5e9); }
+.macro-card.index-4 { background: linear-gradient(135deg, #f43f5e, #d946ef); }
+
+/* Landscape Mode Desktop Parity */
+@media (max-width: 900px) and (orientation: landscape) {
+  .now-playing-overlay {
+    flex-direction: row !important;
+    padding: 24px 48px 24px 24px !important;
+    justify-content: space-evenly !important;
+  }
+  
+  .now-playing-overlay .overlay-main-layout {
+    flex-direction: row !important;
+    width: 100% !important;
+    gap: 40px !important;
+    align-items: center !important;
+  }
+
+  .now-playing-overlay .overlay-art-container {
+    width: 60vh !important;
+    height: 60vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    padding-top: 0 !important;
+  }
+  
+  .now-playing-overlay .overlay-art {
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .now-playing-overlay .overlay-track-meta {
+    text-align: left !important;
+    margin: 0 !important;
+    flex: 1;
+  }
+  
+  .now-playing-overlay .overlay-controls {
+    width: 100% !important;
   }
 }

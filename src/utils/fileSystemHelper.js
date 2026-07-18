@@ -1,3 +1,18 @@
+import jsmediatags from 'jsmediatags/dist/jsmediatags.min.js';
+
+export async function extractMetadata(file) {
+  return new Promise((resolve) => {
+    jsmediatags.read(file, {
+      onSuccess: function(tag) {
+        resolve(tag.tags);
+      },
+      onError: function(error) {
+        resolve(null);
+      }
+    });
+  });
+}
+
 export async function scanDirectory(dirHandle) {
   const files = [];
   
@@ -71,33 +86,53 @@ export async function triggerFileSelect() {
   } else {
     try {
       const dirHandle = await window.showDirectoryPicker();
-      const files = await scanDirectory(dirHandle);
+      const fileHandles = await scanDirectory(dirHandle);
       
-      return files.map(file => {
-        const cleanName = file.name.replace(/\.[^/.]+$/, "");
+      const tracks = await Promise.all(fileHandles.map(async fileInfo => {
+        const file = await fileInfo.fileHandle.getFile();
+        const tags = await extractMetadata(file);
+        
+        const cleanName = fileInfo.name.replace(/\.[^/.]+$/, "");
         const parts = cleanName.split(' - ');
         let artist = 'Unknown Artist';
         let title = cleanName;
+        
         if (parts.length > 1) {
           artist = parts[0].trim();
           title = parts.slice(1).join(' - ').trim();
         }
 
+        // Override with metadata if available
+        if (tags) {
+          if (tags.title) title = tags.title;
+          if (tags.artist) artist = tags.artist;
+        }
+
+        let album = tags?.album || 'Unknown Album';
+        let genre = tags?.genre || 'Uncategorized';
+        
+        // Clean up genre (sometimes they come in formats like "(17)Rock")
+        if (genre.includes(')')) {
+          genre = genre.split(')').pop().trim() || 'Uncategorized';
+        }
+
         return {
-          id: `local:${file.name}`,
-          name: file.name,
+          id: fileInfo.id,
+          name: fileInfo.name,
           title,
           artist,
-          album: 'Unknown Album',
-          genre: 'Local Music',
-          year: '',
-          artwork: null,
+          album,
+          genre,
+          year: tags?.year || '',
+          artwork: null, // Artwork extraction is handled async when playing to save memory
           duration: null,
           source: 'local',
-          fileHandle: file.fileHandle,
+          fileHandle: fileInfo.fileHandle,
           url: ''
         };
-      });
+      }));
+      
+      return tracks;
     } catch (err) {
       console.error('Directory Picker error:', err);
       return [];

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Zap, Loader2, Settings } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Loader2, Settings } from 'lucide-react';
 import { getAutoQualityLevel, QUALITY_LEVELS } from '../utils/audioQuality';
 import { useToast } from './Toast';
 import { triggerHaptic } from '../utils/haptics';
@@ -15,8 +15,6 @@ export default function PlayerBar({
   setShuffle,
   repeat,
   setRepeat,
-  autoNext,
-  setAutoNext,
   currentTime,
   duration,
   onSeek,
