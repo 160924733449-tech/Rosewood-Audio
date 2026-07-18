@@ -1185,7 +1185,8 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 40px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   animation: slide-up-overlay 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -1209,8 +1210,8 @@ body {
   inset: -10%;
   background-size: cover;
   background-position: center;
-  filter: blur(80px) saturate(180%);
-  opacity: 0.4;
+  filter: blur(90px) saturate(200%);
+  opacity: 0.65;
   transform: scale(1.15);
   z-index: 0;
   pointer-events: none;
@@ -1224,7 +1225,7 @@ body {
   justify-content: space-between;
   align-items: center;
   z-index: 2;
-  max-width: 440px;
+  max-width: 100%;
 }
 
 .overlay-close-btn {
@@ -1253,28 +1254,65 @@ body {
   color: var(--text-secondary);
 }
 
-/* Center Panel (Artwork and Metadata) */
-.overlay-center-panel {
+/* Responsive Main Layout (Artwork and Metadata) */
+.overlay-main-layout {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 36px;
-  z-index: 2;
-  flex-grow: 1;
   width: 100%;
-  max-width: 440px;
+  max-width: 1200px;
+  gap: 36px;
+  flex-grow: 1;
+  z-index: 2;
+}
+
+.overlay-left-col {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.overlay-right-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .overlay-main-layout {
+    flex-direction: row;
+    justify-content: center;
+    gap: 80px;
+  }
+  
+  .overlay-left-col {
+    flex: 1;
+    justify-content: flex-end;
+  }
+  
+  .overlay-right-col {
+    flex: 1;
+    align-items: flex-start;
+  }
+  
+  .desktop-hide-visualizer {
+    display: none !important;
+  }
 }
 
 .overlay-art-container {
-  width: 320px;
-  height: 320px;
+  width: 400px;
+  height: 400px;
   aspect-ratio: 1;
-  border-radius: 20px;
+  border-radius: 24px;
   overflow: hidden;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(255, 255, 255, 0.05);
   background: var(--bg-deep);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   animation: glide-up-art 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -1306,8 +1344,10 @@ body {
 }
 
 .overlay-track-meta {
-  text-align: center;
+  text-align: left;
   width: 100%;
+  max-width: 440px;
+  padding: 0 10px;
   animation: glide-up-text 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.08s forwards;
   opacity: 0;
 }
@@ -1324,30 +1364,34 @@ body {
 }
 
 .overlay-track-title {
-  font-family: var(--font-serif);
-  font-size: 26px;
-  font-weight: 700;
+  font-family: var(--font-sans);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   color: var(--text-primary);
   margin-bottom: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 
 .overlay-track-artist {
-  font-size: 16px;
-  color: var(--text-secondary);
-  font-weight: 500;
+  font-size: 20px;
+  color: var(--accent-rose);
+  opacity: 0.95;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
 .overlay-track-album {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted);
-  font-weight: 400;
+  font-weight: 500;
 }
 
 /* Footer / Controls Panel */
@@ -1359,6 +1403,7 @@ body {
   flex-direction: column;
   gap: 28px;
   margin-bottom: 20px;
+  padding: 0 10px;
 }
 
 /* Water Drop / Ripple Animation for new artwork */
@@ -1384,9 +1429,10 @@ body {
   animation: waterDrop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* ==========================================================================
-   Responsive Layout (Mobile & Tablet)
-   ========================================================================== */
+/* Mobile Context Menu Button (Hidden on Desktop) */
+.mobile-context-btn {
+  display: none;
+}
 
 /* Tablet (max-width: 1024px) */
 @media (max-width: 1024px) {
@@ -1400,7 +1446,11 @@ body {
   /* Fluid Grids & Padding */
   .main-view {
     padding: 24px 16px;
-    padding-bottom: 150px; /* Space for mini-player + bottom nav */
+    padding-bottom: 24px; 
+    height: calc(100vh - 164px - env(safe-area-inset-bottom, 0px)) !important;
+    min-height: calc(100vh - 164px - env(safe-area-inset-bottom, 0px)) !important;
+    flex: none !important;
+    width: 100%;
   }
 
   .dashboard-grid {
@@ -1419,28 +1469,29 @@ body {
 
   /* App Layout for Mobile: Stacked instead of Row */
   .main-content {
-    flex-direction: column;
-    height: 100vh; /* Will take full height, overlays will position on top */
+    display: block !important;
+    height: 100vh !important;
+    padding: 12px 12px 0 12px !important;
   }
 
   /* Transform Sidebar into Bottom Navigation */
   .sidebar {
+    width: 100%;
+    height: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-right: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0 16px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     position: fixed;
     bottom: 0;
     left: 0;
-    width: 100vw;
-    height: 70px;
-    min-width: auto;
+    z-index: 100;
     flex-direction: row;
     justify-content: space-around;
-    align-items: center;
-    padding: 0 16px;
-    border-right: none;
-    border-top: 1px solid var(--border-subtle);
-    z-index: 100;
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(10, 10, 10, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
   }
 
   .sidebar-logo, .sidebar-playlists, .user-profile-badge, .sidebar-divider, .local-import-section {
@@ -1471,22 +1522,33 @@ body {
     border-radius: 0;
     padding-left: 8px;
   }
+  
+  .desktop-only-playlist-btn {
+    display: none !important;
+  }
+
+  .mobile-context-btn {
+    display: block;
+    cursor: pointer;
+  }
 
   /* Transform PlayerBar into Mini-Player */
   .player-bar {
     position: fixed;
-    bottom: 80px; /* Above bottom nav */
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     left: 12px;
-    width: calc(100vw - 24px);
+    width: calc(100% - 16px);
     height: 64px;
-    min-height: 64px;
+    margin: 8px;
     border-radius: 12px;
     padding: 0 16px;
     z-index: 99;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     justify-content: space-between;
     background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .player-art, .player-placeholder-art {
@@ -1508,7 +1570,9 @@ body {
     width: auto;
   }
 
-  .player-timeline, .player-extra-controls, .control-btn:not(.play-pause-btn):not([title="Next Track"]) {
+  .player-bar .player-timeline, 
+  .player-bar .player-extra-controls, 
+  .player-bar .control-btn:not(.play-pause-btn):not([title="Next Track"]) {
     display: none; /* Hide volume, timeline, and extra controls on mini-player */
   }
 
@@ -1517,9 +1581,26 @@ body {
     height: 40px;
   }
 
-  /* Table adjustments */
-  .track-album-cell {
+  /* Table adjustments for Mobile UX */
+  .track-album-cell,
+  .track-number-cell,
+  .track-duration-cell {
     display: none;
+  }
+
+  .playlist-select-btn {
+    min-width: unset !important;
+    padding: 6px !important;
+    font-size: 0 !important; /* Hide text */
+  }
+  
+  .playlist-select-btn::after {
+    content: '+';
+    font-size: 16px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -1830,20 +1911,25 @@ body {
     background: var(--accent-deep);
     color: white;
   }
-  /* Full Screen Player Vinyl Style */
+  /* Mobile Now Playing Overlay Overrides */
+  .now-playing-overlay .overlay-header {
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
+  }
+
   .now-playing-overlay .overlay-art-container {
     padding-top: 20px;
     display: flex;
     justify-content: center;
   }
   
-  .vinyl-art {
-    border-radius: 50% !important;
-    border: 8px solid #111 !important;
-    box-shadow: 0 0 0 4px #222, 0 10px 40px rgba(0,0,0,0.8) !important;
-    width: 280px !important;
-    height: 280px !important;
-    object-fit: cover;
+  .now-playing-overlay .volume-container,
+  .now-playing-overlay .audio-visualizer,
+  .now-playing-overlay .vinyl-progress-container {
+    display: none !important;
+  }
+
+  .now-playing-overlay .overlay-art.spin {
+    animation: none !important; /* Disable vinyl spinning on mobile */
   }
 
   /* Login Page Mobile Styling */
@@ -1998,5 +2084,35 @@ body {
     padding: 24px 0 16px 0;
     margin-top: -24px;
     margin-bottom: 8px;
+  }
+
+  .now-playing-overlay {
+    padding: 24px 16px;
+  }
+
+  .overlay-art-container {
+    width: 75vw;
+    height: 75vw;
+    max-width: 320px;
+    max-height: 320px;
+  }
+
+  .overlay-main-layout {
+    gap: 20px;
+  }
+
+  .overlay-track-meta {
+    text-align: center;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .overlay-track-title {
+    font-size: 26px;
+    white-space: normal;
+  }
+
+  .overlay-track-artist {
+    font-size: 18px;
   }
 }

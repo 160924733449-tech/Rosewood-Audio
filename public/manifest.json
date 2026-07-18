@@ -1,0 +1,16 @@
+{
+  "name": "Rosewood Audio",
+  "short_name": "Rosewood",
+  "description": "Premium local audio player.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161616",
+  "theme_color": "#161616",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

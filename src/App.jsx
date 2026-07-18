@@ -11,6 +11,9 @@ import { recordPlayEvent, decayFatigue, getNextTrackAutoplay, getNextTrackAutopl
 import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, deletePlaylistFromSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
 import { fetchSharedLibraryTracks, getStreamUrlForTrack } from './utils/sharedLibraryHelper';
+import { tweenVolume } from './utils/audioTween';
+import { FastAverageColor } from 'fast-average-color';
+import { getQualityTransformedUrl } from './utils/audioQuality';
 import { parseMetadata } from './utils/metadataHelper';
 import { getStreamUrl } from './utils/googleDriveHelper';
 import { trackEvent } from './utils/tracker';
@@ -54,6 +57,15 @@ export default function App() {
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState(false);
   const [autoNext, setAutoNext] = useState(true);
+  const [audioQuality, setAudioQualityState] = useState(localStorage.getItem('aura_audio_quality') || 'auto');
+  const [isFetchingLibrary, setIsFetchingLibrary] = useState(false);
+  const audioQualityRef = useRef(audioQuality);
+
+  const setAudioQuality = (q) => {
+    setAudioQualityState(q);
+    audioQualityRef.current = q;
+    localStorage.setItem('aura_audio_quality', q);
+  };
   const [playedHistory, setPlayedHistory] = useState([]);
   const [isNowPlayingExpanded, setIsNowPlayingExpanded] = useState(false);
 
@@ -149,14 +161,20 @@ export default function App() {
                     };
                     setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
                     await saveTrack(updatedTrack);
-                    
-                    // Note: Since this is async, we shouldn't overwrite finalTrack directly here 
-                    // because it might have already been processed in the outer scope.
                   }
                 } catch (e) {
                   console.warn('[Preloader] ID3 extraction error:', e);
                 }
               }, 100);
+            } else if (streamResult.artworkUrl) {
+              // Apply cached artwork immediately if streaming from Firebase
+              const updatedTrack = {
+                ...finalTrack,
+                localChecked: true,
+                artwork: streamResult.artworkUrl
+              };
+              setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
+              await saveTrack(updatedTrack);
             }
           }
         }
@@ -182,7 +200,7 @@ export default function App() {
         // Only set the HTMLAudioElement src for the IMMEDIATE next track to ensure gapless buffering
         if (inactiveAudio.getAttribute('data-track-id') !== finalTrack.id && !inactiveAudio.src) {
           inactiveAudio.setAttribute('data-track-id', finalTrack.id);
-          inactiveAudio.src = preloadUrl;
+          inactiveAudio.src = getQualityTransformedUrl(preloadUrl, audioQualityRef.current);
           inactiveAudio.preload = 'auto';
           inactiveAudio.load();
           console.log(`[Preloader] Buffering immediate next track: ${finalTrack.title}`);
@@ -434,6 +452,26 @@ export default function App() {
     }
   }, [volume]);
 
+  // Hot-swap audio quality
+  useEffect(() => {
+    if (!audioRef.current) return;
+    const currentSrc = audioRef.current.src;
+    if (currentSrc && currentSrc.includes('res.cloudinary.com')) {
+      const newUrl = getQualityTransformedUrl(currentSrc, audioQuality);
+      if (newUrl !== currentSrc) {
+        console.log(`[Playback] Hot-swapping quality to ${audioQuality}...`);
+        const wasPlaying = isPlaying;
+        const currentTime = audioRef.current.currentTime;
+        audioRef.current.src = newUrl;
+        audioRef.current.currentTime = currentTime;
+        if (wasPlaying) {
+          audioRef.current.play().catch(e => console.error('Hot-swap play failed', e));
+        }
+      }
+    }
+  }, [audioQuality]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   // Load local data if in Local Mode
   useEffect(() => {
     if (loggedIn && userMode === 'local') {
@@ -470,6 +508,7 @@ export default function App() {
     }));
 
     if (authData.mode === 'shared') {
+      setIsFetchingLibrary(true);
       const sharedTracks = await fetchSharedLibraryTracks();
       const existingTracks = await getAllTracks();
       const existingMap = new Map(existingTracks.map(t => [t.id, t]));
@@ -508,6 +547,7 @@ export default function App() {
           await saveAffinity(aff.key, aff.score);
         }
       }
+      setIsFetchingLibrary(false);
     }
   };
 
@@ -568,18 +608,13 @@ export default function App() {
   };
 
   const setTrackSilent = (track, startPosition = 0) => {
-    if (!audioRef.current) return;
-    setCurrentTrack(track);
-    if (track.url) {
-      audioRef.current.src = track.url;
-      audioRef.current.currentTime = startPosition;
-    }
-    setCurrentTime(startPosition);
-    setIsPlaying(false);
+    // Instead of just setting metadata, fully preload the track silently
+    handlePlayTrack(track, [], startPosition, false);
   };
 
-  const handlePlayTrack = async (track, queue = [], startPosition = 0) => {
+  const handlePlayTrack = async (track, queue = [], startPosition = 0, autoPlay = true) => {
     if (!audioRef.current) return;
+    if (loadingTrack && loadingTrackIdRef.current === track.id) return; // Prevent spam clicking the same track
 
     upcomingTracksRef.current = []; // Clear cached upcoming tracks
 
@@ -597,6 +632,7 @@ export default function App() {
     setCurrentTrack(track);
     setActiveQueue(queue.length > 0 ? queue : tracks);
     setIsPlaying(false);
+    if (startPosition > 0) setCurrentTime(startPosition);
     loadingTrackIdRef.current = track.id;
 
     trackEvent('play', track);
@@ -627,9 +663,17 @@ export default function App() {
           if (!streamResult || !streamResult.blobUrl) {
             console.error('[Playback] Could not load stream for track:', track.name, '— auto-skipping.');
             setLoadingTrack(false);
-            // Increment consecutive skip counter and check limit (but don't auto-skip anymore)
+            
+            // CLEAR THE OLD SOURCE SO IT DOESN'T PLAY THE PREVIOUS SONG
+            audioElementsRef.current[activeIndexRef.current].removeAttribute('src');
+            
             consecutiveSkipsRef.current += 1;
             console.warn('[Playback Error] Stream failed to load. Audio playback stopped.');
+            
+            // Auto skip if under limit
+            if (consecutiveSkipsRef.current < 5) {
+               setTimeout(() => handleNextTrack(), 500);
+            }
             return;
           }
           
@@ -665,6 +709,17 @@ export default function App() {
                 console.warn('[Playback] ID3 extraction error:', e);
               }
             }, 100);
+          } else if (streamResult.artworkUrl && !track.localChecked) {
+            const updatedTrack = {
+              ...finalTrack,
+              localChecked: true,
+              artwork: streamResult.artworkUrl
+            };
+            if (currentTrackRef.current?.id === updatedTrack.id) {
+              setCurrentTrack(updatedTrack);
+            }
+            setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
+            await saveTrack(updatedTrack);
           }
           
         } else if (track.source === 'local') {
@@ -707,33 +762,45 @@ export default function App() {
     // Update legacy ref
     audioRef.current = newActiveAudio;
 
-    // Clean up old audio element
-    oldActiveAudio.pause();
-    
-    // Revoke old object URL safely if it's not cached
-    if (oldActiveAudio.src && oldActiveAudio.src.startsWith('blob:') && oldActiveAudio.src !== playUrl) {
-      const isCached = Object.values(preloadedUrlsRef.current).includes(oldActiveAudio.src);
-      // We also check if the new element is using it
-      if (!isCached && newActiveAudio.src !== oldActiveAudio.src) {
-        URL.revokeObjectURL(oldActiveAudio.src);
+    const doCleanup = (audioEl, oldUrl) => {
+      if (oldUrl && oldUrl.startsWith('blob:') && oldUrl !== playUrl) {
+        const isCached = Object.values(preloadedUrlsRef.current).includes(oldUrl);
+        if (!isCached && newActiveAudio.src !== oldUrl) {
+          URL.revokeObjectURL(oldUrl);
+        }
       }
+      audioEl.removeAttribute('src');
+      audioEl.removeAttribute('data-track-id');
+      audioEl.load();
+    };
+
+    if (isPlaying && oldActiveAudio.src) {
+      const oldUrl = oldActiveAudio.src;
+      // Fade out old track
+      tweenVolume(oldActiveAudio, 0, 1500).then(() => {
+        oldActiveAudio.pause();
+        doCleanup(oldActiveAudio, oldUrl);
+      });
+    } else {
+      oldActiveAudio.pause();
+      doCleanup(oldActiveAudio, oldActiveAudio.src);
     }
-    
-    oldActiveAudio.removeAttribute('src');
-    oldActiveAudio.removeAttribute('data-track-id');
-    oldActiveAudio.load();
 
     if (!isPreloaded) {
       // If we didn't gapless-swap, we need to set up the new active element from scratch
       newActiveAudio.pause();
       newActiveAudio.removeAttribute('src');
       newActiveAudio.load();
-      newActiveAudio.src = playUrl;
+      newActiveAudio.src = getQualityTransformedUrl(playUrl, audioQualityRef.current);
       newActiveAudio.setAttribute('data-track-id', track.id);
     }
     
-    // Apply full volume to new active audio
-    newActiveAudio.volume = volume;
+    // Crossfade in new active audio
+    if (isPlaying) {
+      newActiveAudio.volume = 0;
+    } else {
+      newActiveAudio.volume = volume;
+    }
     
     if (startPosition > 0) {
       newActiveAudio.currentTime = startPosition;
@@ -744,28 +811,41 @@ export default function App() {
       setCurrentTime(0);
     }
 
-    // Call play() immediately instead of waiting for canplaythrough.
-    newActiveAudio.play()
-      .then(() => {
-        if (loadingTrackIdRef.current === track.id) {
-          setIsPlaying(true);
-          // Reset consecutive skip counter — this track loaded successfully
-          consecutiveSkipsRef.current = 0;
-        }
-      })
-      .catch(err => {
-        console.error('[Playback] play() rejected:', err);
-        // Don't auto-skip here — the error handler on the audio element will do it
-      });
+    if (autoPlay) {
+      // Call play() immediately instead of waiting for canplaythrough.
+      newActiveAudio.play()
+        .then(() => {
+          if (loadingTrackIdRef.current === track.id) {
+            setIsPlaying(true);
+            // Fade in after play starts
+            tweenVolume(newActiveAudio, volume, 1500);
+            // Reset consecutive skip counter — this track loaded successfully
+            consecutiveSkipsRef.current = 0;
+          }
+        })
+        .catch(err => {
+          console.error('[Playback] play() rejected:', err);
+          // Don't auto-skip here — the error handler on the audio element will do it
+        });
+    } else {
+      // Finished loading silently
+      if (loadingTrackIdRef.current === track.id) {
+        setLoadingTrack(false);
+        setIsPlaying(false);
+      }
+    }
 
     saveStatePersistence(track.id, 0);
   };
 
-  const handlePlayPauseToggle = () => {
+  const handlePlayPauseToggle = async () => {
     if (!currentTrack) return;
+    if (loadingTrack) return; // Prevent playing old track while fetching new one
+    
     if (isPlaying) {
-      audioRef.current.pause();
       setIsPlaying(false);
+      await tweenVolume(audioRef.current, 0, 300);
+      audioRef.current.pause();
       saveStatePersistence(currentTrack.id, audioRef.current.currentTime);
     } else {
       // If the audio source was never loaded (e.g., restored from silent state on login)
@@ -774,8 +854,12 @@ export default function App() {
         return;
       }
 
+      audioRef.current.volume = 0;
       audioRef.current.play()
-        .then(() => setIsPlaying(true))
+        .then(() => {
+          setIsPlaying(true);
+          tweenVolume(audioRef.current, volume, 300);
+        })
         .catch(err => console.error('Playback failed:', err));
     }
   };
@@ -790,8 +874,6 @@ export default function App() {
   };
 
   const handleTrackEnd = async () => {
-      // NOTE: Uses state variables (currentTrack, repeat, autoNext, etc)
-      // Must be called via handlersRef from the audio ended event to avoid stale closures.
     if (currentTrack) {
       const syncConfig = {
         mode: userMode,
@@ -815,8 +897,8 @@ export default function App() {
   };
 
   const handleNextTrack = async () => {
-      // NOTE: Must be called via handlersRef from audio error event
     if (tracks.length === 0) return;
+    if (loadingTrack) return; // Prevent skipping multiple times while loading
 
     if (currentTrack && currentTime < 30 && isPlaying) {
       const syncConfig = {
@@ -831,6 +913,7 @@ export default function App() {
     }
 
     let nextTrack = null;
+
     if (upcomingTracksRef.current && upcomingTracksRef.current.length > 0) {
       nextTrack = upcomingTracksRef.current.shift();
     } else {
@@ -848,7 +931,8 @@ export default function App() {
       handleTrackEnd,
       handleNextTrack,
       handlePrevTrack,
-      handlePlayPauseToggle
+      handlePlayPauseToggle,
+      loadingTrack
     };
   });
 
@@ -868,6 +952,7 @@ export default function App() {
         if (handlersRef.current.handleNextTrack) handlersRef.current.handleNextTrack();
       });
       navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        if (handlersRef.current.loadingTrack) return;
         const skipTime = details.seekOffset || 10;
         if (audioRef.current) {
            audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - skipTime);
@@ -875,6 +960,7 @@ export default function App() {
         }
       });
       navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        if (handlersRef.current.loadingTrack) return;
         const skipTime = details.seekOffset || 10;
         if (audioRef.current) {
            audioRef.current.currentTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + skipTime);
@@ -882,6 +968,7 @@ export default function App() {
         }
       });
       navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (handlersRef.current.loadingTrack) return;
         if (audioRef.current) {
           audioRef.current.currentTime = details.seekTime;
           setCurrentTime(details.seekTime);
@@ -926,7 +1013,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Update Media Session metadata when track changes
+  const facRef = useRef(new FastAverageColor());
+
+  // Set the MediaSession API metadata when track changes
   useEffect(() => {
     if ('mediaSession' in navigator && currentTrack) {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -938,9 +1027,31 @@ export default function App() {
         ] : []
       });
     }
+
+    // Dynamic theming
+    if (currentTrack && currentTrack.artwork) {
+      facRef.current.getColorAsync(currentTrack.artwork)
+        .then(color => {
+          const isDark = color.isDark;
+          const dominantHex = color.hex;
+          const adjustedHex = isDark ? color.hex : '#D24A61'; // Fallback if too bright
+          document.documentElement.style.setProperty('--accent-rose', adjustedHex);
+          document.documentElement.style.setProperty('--bg-gradient-top', `rgba(${color.value[0]}, ${color.value[1]}, ${color.value[2]}, 0.15)`);
+        })
+        .catch(e => {
+          console.warn('Failed to extract dominant color', e);
+          document.documentElement.style.setProperty('--accent-rose', '#D24A61');
+          document.documentElement.style.setProperty('--bg-gradient-top', 'rgba(25, 25, 25, 1)');
+        });
+    } else {
+      document.documentElement.style.setProperty('--accent-rose', '#D24A61');
+      document.documentElement.style.setProperty('--bg-gradient-top', 'rgba(25, 25, 25, 1)');
+    }
+
   }, [currentTrack]);
 
   const handlePrevTrack = () => {
+    if (loadingTrack) return;
     if (!audioRef.current) return;
 
     if (audioRef.current.currentTime > 3) {
@@ -963,6 +1074,7 @@ export default function App() {
   };
 
   const handleSeek = (time) => {
+    if (loadingTrack) return;
     if (audioRef.current) {
       audioRef.current.currentTime = time;
       setCurrentTime(time);
@@ -1056,10 +1168,11 @@ export default function App() {
           onTracksImported={handleTracksImported}
           onRefreshLibrary={handleRefreshLibrary}
         />
-        <MainView
-          currentTab={currentTab}
-          tracks={tracks}
-          playlists={playlists}
+        <MainView 
+            currentTab={currentTab}
+            tracks={tracks}
+            isLoadingTracks={isFetchingLibrary}
+            playlists={playlists}
           activePlaylistId={activePlaylistId}
           onPlayTrack={handlePlayTrack}
           onAddToPlaylist={handleAddToPlaylist}
@@ -1089,12 +1202,15 @@ export default function App() {
         onSeek={handleSeek}
         volume={volume}
         onVolumeChange={setVolume}
+        audioQuality={audioQuality}
+        setAudioQuality={setAudioQuality}
         onExpand={() => setIsNowPlayingExpanded(true)}
       />
 
       {isNowPlayingExpanded && currentTrack && (
         <NowPlayingOverlay
           track={currentTrack}
+          loadingTrack={loadingTrack}
           isPlaying={isPlaying}
           currentTime={currentTime}
           duration={duration}

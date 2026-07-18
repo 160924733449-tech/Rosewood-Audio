@@ -1,5 +1,5 @@
 import { APPS_SCRIPT_URL } from '../config';
-
+import { getAudioFromCache, saveAudioToCache } from './storageCacheHelper';
 /**
  * Map of file extensions to proper MIME types.
  * This prevents playback failures caused by incorrect MIME types when creating audio Blobs.
@@ -40,10 +40,34 @@ function getMimeType(filename, serverMime) {
   return 'audio/mpeg'; // safest default — browsers are very good at decoding mp3
 }
 
+import { db } from '../config/firebase';
+import { collection, getDocs, doc, writeBatch } from 'firebase/firestore';
+
 /**
- * Fetches the list of audio files from the shared library using the deployed Google Apps Script API.
+ * Fetches the list of audio files from the shared library.
+ * It first checks Firebase Firestore for a cached tracklist.
+ * If empty, it fetches from the Google Apps Script and saves the result to Firestore.
  */
 export async function fetchSharedLibraryTracks() {
+  try {
+    // 1. Try to load from Firebase first (Fast)
+    const libraryRef = collection(db, 'libraryMetadata');
+    const snapshot = await Promise.race([
+      getDocs(libraryRef),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase timeout')), 3000))
+    ]);
+    if (!snapshot.empty) {
+      const cachedTracks = [];
+      snapshot.forEach(doc => {
+        cachedTracks.push(doc.data());
+      });
+      return cachedTracks;
+    }
+  } catch (err) {
+    console.warn("Failed to load library from Firebase, falling back to Apps Script:", err);
+  }
+
+  // 2. If Firebase is empty, load from Google Apps Script (Slow)
   if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('YOUR_APPS_SCRIPT_')) {
     console.warn('Apps Script URL is not configured. Returning empty library.');
     return [];
@@ -60,7 +84,7 @@ export async function fetchSharedLibraryTracks() {
     }
 
     // Filter out folders, images, or other non-audio files to prevent playlist issues
-    return files
+    const tracks = files
       .filter(file => file && file.id && file.name && (
         (file.mime && file.mime.startsWith('audio/')) ||
         file.name.match(AUDIO_EXTENSIONS_REGEX)
@@ -92,6 +116,22 @@ export async function fetchSharedLibraryTracks() {
           driveFileId: file.id
         };
       });
+
+    // 3. Save the fetched tracks to Firebase so the next load is instant
+    try {
+      const batch = writeBatch(db);
+      tracks.forEach(track => {
+        const trackRef = doc(db, 'libraryMetadata', track.id);
+        batch.set(trackRef, track);
+      });
+      batch.commit()
+        .then(() => console.log("Successfully cached library in Firebase."))
+        .catch(err => console.error("Failed to cache library in Firebase:", err));
+    } catch (err) {
+      console.error("Failed to cache library in Firebase:", err);
+    }
+
+    return tracks;
   } catch (err) {
     console.error('Error loading shared library tracks:', err);
     return [];
@@ -133,6 +173,14 @@ export async function getStreamUrlForTrack(track, retries = 1, abortSignal = nul
     return { blobUrl: track.url, blob: null };
   }
 
+  // 1. Check Firebase Storage cache first (Fast Path)
+  const cachedData = await getAudioFromCache(track.id);
+  if (cachedData && cachedData.url) {
+    console.log(`[Stream] Cache hit for ${track.name}. Streaming from Firebase Storage.`);
+    return { blobUrl: cachedData.url, artworkUrl: cachedData.artworkUrl, blob: null };
+  }
+
+  // 2. Fallback to slow Apps Script Base64 fetch
   const streamUrl = `${APPS_SCRIPT_URL}?action=stream&id=${track.driveFileId}`;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -192,6 +240,10 @@ export async function getStreamUrlForTrack(track, retries = 1, abortSignal = nul
       const blobUrl = URL.createObjectURL(blob);
 
       console.log(`[Stream] Successfully decoded track: ${track.name} (${(bytes.length / 1024 / 1024).toFixed(1)} MB, MIME: ${mimeType})`);
+      
+      // Save to Firebase Storage cache in the background
+      saveAudioToCache(track.id, blob, mimeType).catch(err => console.warn("Failed to cache audio in background:", err));
+
       return { blobUrl, blob };
 
     } catch (err) {

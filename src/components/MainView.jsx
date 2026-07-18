@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera } from 'lucide-react';
+import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical } from 'lucide-react';
 import { getRecommendations, getTopMatches } from '../utils/recommendationEngine';
+import { SkeletonTrackList } from './SkeletonTrack';
+import { useContextMenu } from './ContextMenu';
 
 export default function MainView({
   currentTab,
   tracks,
+  isLoadingTracks,
   playlists,
   activePlaylistId,
   onPlayTrack,
@@ -23,6 +26,7 @@ export default function MainView({
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [editingPlaylistId, setEditingPlaylistId] = useState(null);
   const [editPlaylistName, setEditPlaylistName] = useState('');
+  const { openMenu } = useContextMenu();
 
   const openPlaylistEdit = (pl) => {
     setEditingPlaylistId(pl.id);
@@ -108,6 +112,10 @@ export default function MainView({
   };
 
   const renderTrackTable = (trackList) => {
+    if (isLoadingTracks) {
+      return <SkeletonTrackList count={6} />;
+    }
+
     if (!trackList || trackList.length === 0) {
       return (
         <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '40px 0' }}>
@@ -135,6 +143,10 @@ export default function MainView({
                 key={t.id} 
                 className={`track-row ${isActive ? 'active' : ''}`}
                 onClick={() => onPlayTrack(t, trackList)}
+                onContextMenu={(e) => openMenu(e, [
+                  { label: 'Play Now', icon: <Play size={14} />, action: (track) => onPlayTrack(track, trackList) },
+                  { label: 'Add to Playlist', icon: <FolderPlus size={14} />, action: (track) => setOpenDropdownId(openDropdownId === track.id ? null : track.id) },
+                ], t)}
               >
                 <td className="track-number-cell">
                   {isActive ? <Disc size={14} className="spin" /> : index + 1}
@@ -157,8 +169,9 @@ export default function MainView({
                 <td className="track-album-cell">{t.album}</td>
                 <td className="track-duration-cell">{formatDuration(t.duration)}</td>
                 <td onClick={(e) => e.stopPropagation()}>
-                  <div style={{ position: 'relative', display: 'inline-block' }}>
-                    <button
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="desktop-only-playlist-btn" style={{ position: 'relative', display: 'inline-block' }}>
+                      <button
                       className="playlist-select-btn"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -231,7 +244,18 @@ export default function MainView({
                       </div>
                     )}
                   </div>
-                </td>
+                  <button
+                    className="mobile-context-btn"
+                    onClick={(e) => openMenu(e, [
+                      { label: 'Play Now', icon: <Play size={14} />, action: (track) => onPlayTrack(track, trackList) },
+                      { label: 'Add to Playlist', icon: <FolderPlus size={14} />, action: (track) => setOpenDropdownId(openDropdownId === track.id ? null : track.id) },
+                    ], t)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', padding: '8px' }}
+                  >
+                    <MoreVertical size={20} />
+                  </button>
+                </div>
+              </td>
               </tr>
             );
           })}
