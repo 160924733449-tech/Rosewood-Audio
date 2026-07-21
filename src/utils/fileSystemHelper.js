@@ -1,17 +1,4 @@
-import jsmediatags from 'jsmediatags/dist/jsmediatags.min.js';
-
-export async function extractMetadata(file) {
-  return new Promise((resolve) => {
-    jsmediatags.read(file, {
-      onSuccess: function(tag) {
-        resolve(tag.tags);
-      },
-      onError: function(error) {
-        resolve(null);
-      }
-    });
-  });
-}
+import { normalizeGenre } from './metadataHelper.js';
 
 export async function scanDirectory(dirHandle) {
   const files = [];
@@ -48,29 +35,37 @@ export async function triggerFileSelect() {
   const isCapacitor = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
   if (isCapacitor) {
     try {
-      const { FilePicker } = await import('@capawesome/capacitor-file-picker');
-      const result = await FilePicker.pickFiles({
-        types: ['audio/*'],
-        multiple: true,
-      });
-
+      const MediaStorePlugin = window.Capacitor.Plugins.MediaStorePlugin;
+      if (!MediaStorePlugin) {
+        console.error("MediaStorePlugin is not available. Please rebuild the native app.");
+        return [];
+      }
+      
+      const result = await MediaStorePlugin.getAudioFiles();
+      if (!result || !result.files) return [];
+      
       return result.files.map(f => {
-        const cleanName = f.name.replace(/\.[^/.]+$/, "");
-        const parts = cleanName.split(' - ');
-        let artist = 'Unknown Artist';
-        let title = cleanName;
-        if (parts.length > 1) {
-          artist = parts[0].trim();
-          title = parts.slice(1).join(' - ').trim();
+        // We now get title and artist directly from the MediaStore if available
+        let title = f.title && f.title !== 'Unknown Title' ? f.title : f.name.replace(/\.[^/.]+$/, "");
+        let artist = f.artist && f.artist !== '<unknown>' ? f.artist : 'Unknown Artist';
+        
+        // If MediaStore didn't know the artist, try to fallback to filename parsing just in case
+        if (artist === 'Unknown Artist' || artist === '<unknown>') {
+          const cleanName = f.name.replace(/\.[^/.]+$/, "");
+          const parts = cleanName.split(' - ');
+          if (parts.length > 1) {
+            artist = parts[0].trim();
+            title = parts.slice(1).join(' - ').trim();
+          }
         }
 
         return {
-          id: `local:${f.name}`,
+          id: `local:${f.id}`,
           name: f.name,
           title,
           artist,
           album: 'Unknown Album',
-          genre: 'Local Music',
+          genre: normalizeGenre(null, artist, title),
           year: '',
           artwork: null,
           duration: null,
@@ -80,7 +75,7 @@ export async function triggerFileSelect() {
         };
       });
     } catch (e) {
-      console.error('Native FilePicker error:', e);
+      console.error('MediaStore auto-scan error:', e);
       return [];
     }
   } else {
@@ -89,9 +84,6 @@ export async function triggerFileSelect() {
       const fileHandles = await scanDirectory(dirHandle);
       
       const tracks = await Promise.all(fileHandles.map(async fileInfo => {
-        const file = await fileInfo.fileHandle.getFile();
-        const tags = await extractMetadata(file);
-        
         const cleanName = fileInfo.name.replace(/\.[^/.]+$/, "");
         const parts = cleanName.split(' - ');
         let artist = 'Unknown Artist';
@@ -102,29 +94,15 @@ export async function triggerFileSelect() {
           title = parts.slice(1).join(' - ').trim();
         }
 
-        // Override with metadata if available
-        if (tags) {
-          if (tags.title) title = tags.title;
-          if (tags.artist) artist = tags.artist;
-        }
-
-        let album = tags?.album || 'Unknown Album';
-        let genre = tags?.genre || 'Uncategorized';
-        
-        // Clean up genre (sometimes they come in formats like "(17)Rock")
-        if (genre.includes(')')) {
-          genre = genre.split(')').pop().trim() || 'Uncategorized';
-        }
-
         return {
           id: fileInfo.id,
           name: fileInfo.name,
           title,
           artist,
-          album,
-          genre,
-          year: tags?.year || '',
-          artwork: null, // Artwork extraction is handled async when playing to save memory
+          album: 'Unknown Album',
+          genre: normalizeGenre(null, artist, title),
+          year: '',
+          artwork: null,
           duration: null,
           source: 'local',
           fileHandle: fileInfo.fileHandle,

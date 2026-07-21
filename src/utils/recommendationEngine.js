@@ -185,21 +185,34 @@ export function getNextTrackAutoplayWithState(allTracks, currentTrack, history, 
     recentPlayedIds.add(currentTrack.id);
   }
 
-  // Score all candidate tracks
-  const candidates = allTracks
-    .filter(t => !recentPlayedIds.has(t.id))
-    .map(track => {
-      let score = 5; // Base minimum score
+  // Sample up to 200 random tracks to score, drastically reducing CPU load for large libraries
+  const MAX_SAMPLE_SIZE = 200;
+  const filteredTracks = allTracks.filter(t => !recentPlayedIds.has(t.id));
+  const sampleSize = Math.min(filteredTracks.length, MAX_SAMPLE_SIZE);
+  
+  // Quick Fisher-Yates partial shuffle to get a random sample
+  const sample = [];
+  const tracksCopy = [...filteredTracks];
+  for (let i = 0; i < sampleSize; i++) {
+    const randomIndex = Math.floor(Math.random() * tracksCopy.length);
+    sample.push(tracksCopy[randomIndex]);
+    tracksCopy[randomIndex] = tracksCopy[tracksCopy.length - 1];
+    tracksCopy.pop();
+  }
 
-      score += artistAffinities[track.artist] || 0;
-      score += genreAffinities[track.genre] || 0;
+  // Score only the sampled candidate tracks
+  const candidates = sample.map(track => {
+    let score = 5; // Base minimum score
 
-      // Apply fatigue
-      const fatigue = fatigueMap[track.id] || 0;
-      score = Math.max(1, score - fatigue);
+    score += artistAffinities[track.artist] || 0;
+    score += genreAffinities[track.genre] || 0;
 
-      return { track, score };
-    });
+    // Apply fatigue
+    const fatigue = fatigueMap[track.id] || 0;
+    score = Math.max(1, score - fatigue);
+
+    return { track, score };
+  });
 
   if (candidates.length === 0) {
     // If everything is in history, fallback to standard random excluding current track

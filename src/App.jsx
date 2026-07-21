@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SplashScreen from './components/SplashScreen';
-import CategoryLanding from './components/CategoryLanding';
 import LoginScreen from './components/LoginScreen';
 import Sidebar from './components/Sidebar';
 import MainView from './components/MainView';
@@ -12,17 +11,18 @@ import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, get
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
 import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
-import { fetchSharedLibraryTracks, getStreamUrlForTrack, cachePreviewChunk } from './utils/sharedLibraryHelper';
+import { fetchSharedLibraryTracks, getStreamUrlForTrack } from './utils/sharedLibraryHelper';
 import { tweenVolume } from './utils/audioTween';
 import { FastAverageColor } from 'fast-average-color';
 import { MediaSession } from '@capgo/capacitor-media-session';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { getQualityTransformedUrl } from './utils/audioQuality';
-import { parseMetadata, normalizeGenre } from './utils/metadataHelper';
+import { parseMetadata, normalizeGenre, fetchITunesMetadata } from './utils/metadataHelper';
 import { getStreamUrl } from './utils/googleDriveHelper';
 import { trackEvent } from './utils/tracker';
 
 const IS_NATIVE = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
+const APP_VERSION = "1.0.0";
 
 
 export default function App() {
@@ -32,7 +32,6 @@ export default function App() {
   const [loadingTrack, setLoadingTrack] = useState(false);
 
   const [tracks, setTracks] = useState([]);
-  const [currentSpace, setCurrentSpace] = useState(IS_NATIVE ? null : 'All Songs');
   const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [cachedTrackIds, setCachedTrackIds] = useState(new Set());
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -51,6 +50,7 @@ export default function App() {
   const [audioQuality, setAudioQualityState] = useState(localStorage.getItem('aura_audio_quality') || 'auto');
   const [isFetchingLibrary, setIsFetchingLibrary] = useState(false);
   const [isBooting, setIsBooting] = useState(IS_NATIVE);
+  const [updateAvailable, setUpdateAvailable] = useState(null);
   const audioQualityRef = useRef(audioQuality);
 
   const setAudioQuality = (q) => {
@@ -92,20 +92,30 @@ export default function App() {
     initNative();
   }, []);
 
-  // Keep currentTrackRef in sync and update OS Media Session
+  // Check for OTA Updates
+  useEffect(() => {
+    const checkUpdates = async () => {
+      if (!IS_NATIVE) return;
+      try {
+        // Add cache busting to ensure we get the latest version file
+        const response = await fetch(`https://rosewood-audio.vercel.app/version.json?t=${new Date().getTime()}`);
+        if (response.ok) {
+          const data = await response.json();
+          // Extremely simple version string comparison (e.g. "1.0.1" > "1.0.0")
+          if (data.version && data.version.localeCompare(APP_VERSION, undefined, { numeric: true, sensitivity: 'base' }) > 0) {
+            setUpdateAvailable(data);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to check for OTA update:", err);
+      }
+    };
+    checkUpdates();
+  }, []);
+
+  // Keep currentTrackRef in sync
   useEffect(() => {
     currentTrackRef.current = currentTrack;
-    
-    if (currentTrack && 'mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new window.MediaMetadata({
-        title: currentTrack.title || 'Unknown Title',
-        artist: currentTrack.artist || 'Unknown Artist',
-        album: currentTrack.album || 'Unknown Album',
-        artwork: [
-          { src: currentTrack.artwork || '/default-album-art.png', sizes: '512x512', type: 'image/png' }
-        ]
-      });
-    }
   }, [currentTrack]);
 
   const determineNextTracks = async (currTrack, count = 3) => {
@@ -143,56 +153,21 @@ export default function App() {
 
       let finalTrack = track;
 
-      if (finalTrack.source === 'shared' && finalTrack.driveFileId) {
+      if (finalTrack.source === 'shared' || finalTrack.source === 'cloudinary') {
         if (preloadedUrlsRef.current[finalTrack.id]) {
           preloadUrl = preloadedUrlsRef.current[finalTrack.id];
         } else {
-          // Cancel any existing fetch for this track
           if (abortControllersRef.current.has(finalTrack.id)) {
             abortControllersRef.current.get(finalTrack.id).abort();
           }
           const abortController = new AbortController();
           abortControllersRef.current.set(finalTrack.id, abortController);
 
-          const streamResult = await getStreamUrlForTrack(finalTrack, 1, abortController.signal);
+          const streamResult = await getStreamUrlForTrack(finalTrack, abortController.signal);
           abortControllersRef.current.delete(finalTrack.id);
           if (streamResult && streamResult.blobUrl) {
             preloadedUrlsRef.current[finalTrack.id] = streamResult.blobUrl;
             preloadUrl = streamResult.blobUrl;
-            
-            // Extract embedded ID3 tags from the downloaded blob in the background
-            if (streamResult.blob) {
-              setTimeout(async () => {
-                try {
-                  const tags = await parseMetadata(streamResult.blob);
-                  if (tags && (tags.artwork || tags.title !== finalTrack.title)) {
-                    const updatedTrack = {
-                      ...finalTrack,
-                      localChecked: true,
-                      artwork: tags.artwork || finalTrack.artwork,
-                      title: tags.title || finalTrack.title,
-                      artist: tags.artist || finalTrack.artist,
-                      album: tags.album || finalTrack.album,
-                      genre: tags.genre || finalTrack.genre,
-                      year: tags.year || finalTrack.year
-                    };
-                    setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
-                    await saveTrack(updatedTrack);
-                  }
-                } catch (e) {
-                  console.warn('[Preloader] ID3 extraction error:', e);
-                }
-              }, 100);
-            } else if (streamResult.artworkUrl) {
-              // Apply cached artwork immediately if streaming from Firebase
-              const updatedTrack = {
-                ...finalTrack,
-                localChecked: true,
-                artwork: streamResult.artworkUrl
-              };
-              setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
-              await saveTrack(updatedTrack);
-            }
           }
         }
       } else if (finalTrack.source === 'local') {
@@ -210,8 +185,6 @@ export default function App() {
             preloadUrl = freshUrl;
           }
         }
-      } else if (finalTrack.source === 'gdrive') {
-        preloadUrl = getStreamUrl(finalTrack.id);
       } else {
         preloadUrl = finalTrack.url;
       }
@@ -243,9 +216,7 @@ export default function App() {
       await new Promise(resolve => setTimeout(resolve, 3000));
       if (!isSubscribed) return;
 
-      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-      const isSlowNetwork = connection && (connection.saveData || ['slow-2g', '2g', '3g'].includes(connection.effectiveType));
-      const preloadCount = isSlowNetwork ? 1 : 3;
+      const preloadCount = 1;
 
       const upcomingTracks = await determineNextTracks(currentTrack, preloadCount);
       if (!isSubscribed) return;
@@ -371,37 +342,6 @@ export default function App() {
       clearTimeout(timer);
     };
   }, [tracks, isPlaying]);
-
-  // The Sleight of Hand: Silent Background Preview Cacher (Native App Only)
-  useEffect(() => {
-    if (!IS_NATIVE || tracks.length === 0 || userMode !== 'shared' || isOffline) return;
-    let isSubscribed = true;
-
-    const runPreviewCacher = async () => {
-      // Find top 15 tracks based on history/affinities
-      const topMatches = tracks.filter(t => t.source === 'shared');
-      // basic sort, usually getTopMatches does this better but we can just cache the first few for now
-      // if we just use the first 20 tracks, it still works perfectly!
-      const queue = topMatches.slice(0, 20);
-
-      for (const track of queue) {
-        if (!isSubscribed) break;
-        await cachePreviewChunk(track);
-        // tiny delay to avoid blocking network entirely
-        await new Promise(r => setTimeout(r, 500));
-      }
-    };
-
-    // wait 5 seconds after load to start background caching so UI is smooth
-    const cacherTimer = setTimeout(() => {
-      runPreviewCacher();
-    }, 5000);
-
-    return () => {
-      isSubscribed = false;
-      clearTimeout(cacherTimer);
-    }
-  }, [tracks, userMode, isOffline]);
 
   // Initialize Audio
   useEffect(() => {
@@ -758,6 +698,32 @@ export default function App() {
 
     trackEvent('play', track);
 
+    // [LAZY FETCH] iTunes metadata for missing local artwork/genre
+    if (track.source === 'local' && (!track.artwork || !track.genre || track.genre === 'Uncategorized')) {
+      setTimeout(async () => {
+        try {
+          const itunesData = await fetchITunesMetadata(track.artist, track.title);
+          if (itunesData && itunesData.artwork) {
+            console.log(`[iTunes Hydrator] Hydrated ${track.title} with Apple Music data`);
+            const updatedTrack = {
+              ...track,
+              artwork: itunesData.artwork,
+              genre: normalizeGenre(itunesData.genre, track.artist, track.title),
+              album: itunesData.album || track.album,
+              year: itunesData.year || track.year,
+            };
+            
+            // Only update current track state if this track is still the one playing
+            setCurrentTrack(prev => prev?.id === track.id ? { ...prev, ...updatedTrack } : prev);
+            setTracks(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
+            await saveTrack(updatedTrack);
+          }
+        } catch (e) {
+          console.warn('[iTunes Hydrator] Error:', e);
+        }
+      }, 100);
+    }
+
     let finalTrack = track;
 
     // 3. Resolve the audio stream URL in the background
@@ -778,7 +744,7 @@ export default function App() {
     if (!playUrl) {
       setLoadingTrack(true);
       try {
-        if (track.source === 'shared' && track.driveFileId) {
+        if (track.source === 'shared' || track.source === 'cloudinary') {
           const streamResult = await getStreamUrlForTrack(track);
           if (loadingTrackIdRef.current !== track.id) return; // user cancelled!
           if (!streamResult || !streamResult.blobUrl) {
@@ -801,75 +767,6 @@ export default function App() {
           preloadedUrlsRef.current[track.id] = streamResult.blobUrl;
           playUrl = streamResult.blobUrl;
           
-          // The Seamless Handoff: If this is a preview chunk, play it instantly and fetch full track
-          if (streamResult.isPreview) {
-            setTimeout(async () => {
-              try {
-                const fullStreamResult = await getStreamUrlForTrack(track, 1, null, true); // bypassPreview = true
-                if (fullStreamResult && fullStreamResult.blobUrl && currentTrackRef.current?.id === track.id) {
-                  console.log('[Handoff] Full track downloaded, swapping audio seamlessly!');
-                  const activeAudio = audioElementsRef.current[activeIndexRef.current];
-                  const inactiveAudio = audioElementsRef.current[1 - activeIndexRef.current];
-                  
-                  inactiveAudio.src = fullStreamResult.blobUrl;
-                  inactiveAudio.currentTime = activeAudio.currentTime;
-                  await inactiveAudio.play();
-                  
-                  activeAudio.pause();
-                  activeIndexRef.current = 1 - activeIndexRef.current;
-                  audioRef.current = inactiveAudio;
-                  
-                  // Replace preloaded URL with full URL
-                  preloadedUrlsRef.current[track.id] = fullStreamResult.blobUrl;
-                }
-              } catch (e) {
-                console.warn('[Handoff] Failed to fetch full track in background:', e);
-              }
-            }, 100);
-          }
-
-          // Extract ID3 tags from blob in the background so we don't block playback!
-          if (streamResult.blob && !track.localChecked) { // Using localChecked as a general flag that tags were extracted
-            setTimeout(async () => {
-              try {
-                const tags = await parseMetadata(streamResult.blob);
-                if (tags && (tags.artwork || tags.title !== track.title)) {
-                  const updatedTrack = {
-                    ...finalTrack, // finalTrack is captured from outer scope
-                    localChecked: true, // mark as checked
-                    artwork: tags.artwork || finalTrack.artwork,
-                    title: tags.title || finalTrack.title,
-                    artist: tags.artist || finalTrack.artist,
-                    album: tags.album || finalTrack.album,
-                    genre: tags.genre || finalTrack.genre,
-                    year: tags.year || finalTrack.year
-                  };
-                  
-                  // Only update if we're still playing this track!
-                  if (currentTrackRef.current?.id === updatedTrack.id) {
-                    setCurrentTrack(updatedTrack);
-                  }
-                  
-                  setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
-                  await saveTrack(updatedTrack);
-                }
-              } catch (e) {
-                console.warn('[Playback] ID3 extraction error:', e);
-              }
-            }, 100);
-          } else if (streamResult.artworkUrl && !track.localChecked) {
-            const updatedTrack = {
-              ...finalTrack,
-              localChecked: true,
-              artwork: streamResult.artworkUrl
-            };
-            if (currentTrackRef.current?.id === updatedTrack.id) {
-              setCurrentTrack(updatedTrack);
-            }
-            setTracks(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
-            await saveTrack(updatedTrack);
-          }
-          
         } else if (track.source === 'local') {
           if (track.devicePath) {
             const convertSrc = typeof window !== 'undefined' && window.Capacitor ? window.Capacitor.convertFileSrc : (p) => p;
@@ -887,8 +784,6 @@ export default function App() {
           } else {
             playUrl = track.url;
           }
-        } else if (track.source === 'gdrive') {
-          playUrl = getStreamUrl(track.id);
         } else {
           playUrl = track.url;
         }
@@ -1213,12 +1108,29 @@ export default function App() {
     if (currentTrack) {
       document.title = `▶ ${currentTrack.title || 'Unknown'} - ${currentTrack.artist || 'Unknown'}`;
       if (IS_NATIVE) {
-        MediaSession.setMetadata({
-          title: currentTrack.title || currentTrack.name || 'Unknown Track',
-          artist: currentTrack.artist || 'Unknown Artist',
-          album: currentTrack.album || 'Unknown Album',
-          artwork: currentTrack.artwork ? currentTrack.artwork : ''
-        }).catch(()=>{});
+        const updateNativeMetadata = async () => {
+          let finalArtwork = currentTrack.artwork || '';
+          if (finalArtwork.startsWith('blob:')) {
+            try {
+              const res = await fetch(finalArtwork);
+              const blob = await res.blob();
+              const reader = new FileReader();
+              finalArtwork = await new Promise((resolve) => {
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+              });
+            } catch (e) {
+              console.warn('Failed to convert blob to base64 for media session', e);
+            }
+          }
+          MediaSession.setMetadata({
+            title: currentTrack.title || currentTrack.name || 'Unknown Track',
+            artist: currentTrack.artist || 'Unknown Artist',
+            album: currentTrack.album || 'Unknown Album',
+            artwork: finalArtwork
+          }).catch(()=>{});
+        };
+        updateNativeMetadata();
       } else if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: currentTrack.title || currentTrack.name || 'Unknown Track',
@@ -1396,14 +1308,6 @@ export default function App() {
     return true;
   });
 
-  const spaces = ['All Songs', ...new Set(displayTracks.map(t => t.macroGenre))].sort();
-  // "All Songs" goes first, others alphabetical
-  const finalSpaces = spaces.sort((a, b) => a === 'All Songs' ? -1 : b === 'All Songs' ? 1 : a.localeCompare(b));
-  
-  const filteredTracks = (currentSpace === 'All Songs' || currentSpace === 'All' || currentSpace === null)
-    ? displayTracks 
-    : displayTracks.filter(t => t.macroGenre === currentSpace);
-
   return (
     <div className="app-shell">
       <div className="main-content">
@@ -1419,20 +1323,10 @@ export default function App() {
           onLogout={handleLogout}
           onTracksImported={handleTracksImported}
           onRefreshLibrary={handleRefreshLibrary}
-          spaces={finalSpaces}
-          currentSpace={currentSpace}
-          setCurrentSpace={setCurrentSpace}
         />
-        {(currentSpace === null && IS_NATIVE) ? (
-          <CategoryLanding 
-            spaces={finalSpaces} 
-            onSelectCategory={setCurrentSpace}
-            setCurrentTab={setCurrentTab}
-          />
-        ) : (
-          <MainView 
-            currentTab={currentTab}
-            tracks={filteredTracks}
+        <MainView 
+          currentTab={currentTab}
+          tracks={displayTracks}
             isLoadingTracks={isFetchingLibrary}
             playlists={playlists}
             activePlaylistId={activePlaylistId}
@@ -1454,7 +1348,6 @@ export default function App() {
             setActivePlaylistId={setActivePlaylistId}
             isOffline={isOffline}
           />
-        )}
       </div>
       <PlayerBar
         currentTrack={currentTrack}
@@ -1502,6 +1395,84 @@ export default function App() {
         />
       )}
       <MobileBottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
+
+      {updateAvailable && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '24px',
+            padding: '32px',
+            maxWidth: '400px',
+            width: '100%',
+            textAlign: 'center',
+            boxShadow: 'var(--shadow-xl)'
+          }}>
+            <h2 style={{ fontSize: '24px', color: 'var(--text-primary)', marginBottom: '8px' }}>Update Available</h2>
+            <p style={{ fontSize: '15px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              Version {updateAvailable.version} is ready to download!
+            </p>
+            <div style={{ 
+              background: 'rgba(255,255,255,0.05)', 
+              padding: '16px', 
+              borderRadius: '12px',
+              marginBottom: '32px',
+              textAlign: 'left',
+              fontSize: '14px',
+              color: 'var(--text-primary)'
+            }}>
+              <strong>What's new:</strong><br />
+              {updateAvailable.notes || 'Bug fixes and performance improvements.'}
+            </div>
+            
+            <button 
+              onClick={() => {
+                window.open('https://rosewood-audio.vercel.app/reson8.apk', '_system');
+                setUpdateAvailable(null);
+              }}
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: '12px',
+                border: 'none',
+                background: 'var(--accent-rose)',
+                color: '#fff',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                marginBottom: '12px'
+              }}
+            >
+              Download Update
+            </button>
+            <button 
+              onClick={() => setUpdateAvailable(null)}
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: '12px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
+            >
+              Maybe Later
+            </button>
+          </div>
+        </div>
+      )}
     </div>
 
   );

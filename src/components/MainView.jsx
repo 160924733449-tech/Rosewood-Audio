@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical, Download, LogOut, Settings, Trash2, RefreshCw } from 'lucide-react';
+import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical, Download, LogOut, Settings, Trash2, RefreshCw, Shuffle } from 'lucide-react';
+import { TableVirtuoso } from 'react-virtuoso';
 import { getRecommendations, getTopMatches } from '../utils/recommendationEngine';
 import { SkeletonTrackList } from './SkeletonTrack';
 import { useContextMenu } from './ContextMenu';
@@ -154,7 +155,7 @@ export default function MainView({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks.length, currentTrack]);
+  }, [tracks.length]);
 
 
   const formatDuration = (time) => {
@@ -169,7 +170,7 @@ export default function MainView({
   };
 
   const renderTrackTable = (trackList) => {
-    if (isLoadingTracks) {
+    if (isLoadingTracks && (!trackList || trackList.length === 0)) {
       return <SkeletonTrackList count={6} />;
     }
 
@@ -182,22 +183,21 @@ export default function MainView({
     }
 
     return (
-      <table className="track-table">
-        <thead>
-          <tr>
-            <th className="track-number-cell">#</th>
-            <th>Title</th>
-            <th>Album</th>
-            <th className="track-duration-cell"><Clock size={14} /></th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {trackList.map((t, index) => {
+      <TableVirtuoso
+        data={trackList}
+        useWindowScroll
+        className="track-table"
+        components={{
+          Table: (props) => <table className="track-table" {...props} />,
+          TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} />),
+          TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} />),
+          TableRow: (props) => {
+            const t = props.item;
+            const index = props['data-index'];
             const isActive = currentTrack && currentTrack.id === t.id;
             return (
               <tr 
-                key={t.id} 
+                {...props}
                 className={`track-row ${isActive ? 'active' : ''}`}
                 onClick={() => onPlayTrack(t, trackList)}
                 onContextMenu={(e) => openMenu(e, [
@@ -208,7 +208,23 @@ export default function MainView({
                     if (newSpace) onUpdateTrack(track.id, { genre: newSpace });
                   }}
                 ], t)}
-              >
+              />
+            );
+          }
+        }}
+        fixedHeaderContent={() => (
+          <tr>
+            <th className="track-number-cell">#</th>
+            <th>Title</th>
+            <th>Album</th>
+            <th className="track-duration-cell"><Clock size={14} /></th>
+            <th></th>
+          </tr>
+        )}
+        itemContent={(index, t) => {
+          const isActive = currentTrack && currentTrack.id === t.id;
+          return (
+            <>
                 <td className="track-number-cell">
                   {isActive ? <Disc size={14} className="spin" /> : index + 1}
                 </td>
@@ -321,11 +337,10 @@ export default function MainView({
                   </button>
                 </div>
               </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </>
+          );
+        }}
+      />
     );
   };
 
@@ -446,6 +461,36 @@ export default function MainView({
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tracks.length} Songs Loaded</span>
               </div>
             </div>
+            {tracks.length > 0 && (
+              <button 
+                onClick={() => {
+                  const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+                  onPlayTrack(shuffled[0], shuffled);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  background: 'var(--gradient-accent)',
+                  color: '#fff',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: 'var(--shadow-md)',
+                  marginBottom: '16px',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = 'var(--shadow-xl)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
+              >
+                <Shuffle size={20} /> QUICK SHUFFLE ALL
+              </button>
+            )}
             <div style={{ width: '100%', position: 'relative' }}>
               <input 
                 type="text" 
@@ -466,7 +511,7 @@ export default function MainView({
             </div>
             {!searchQuery && (
               <span style={{ fontSize: '13px', color: 'var(--accent-coral)', fontWeight: '500' }}>
-                Showing Top 100 Matches
+                Showing All Songs
               </span>
             )}
           </div>
@@ -477,13 +522,13 @@ export default function MainView({
                 (t.title && t.title.toLowerCase().includes(query)) || 
                 (t.artist && t.artist.toLowerCase().includes(query)) || 
                 (t.album && t.album.toLowerCase().includes(query))
-              ).slice(0, 100);
+              );
               if (filtered.length === 0) {
                 return <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '40px 0' }}>No tracks found for "{searchQuery}"</div>;
               }
               return renderTrackTable(filtered);
             }
-            return renderTrackTable(topMatches);
+            return renderTrackTable(tracks);
           })()}
         </>
       )}

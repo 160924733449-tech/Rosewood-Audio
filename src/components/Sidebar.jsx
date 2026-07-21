@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic, Download, Settings } from 'lucide-react';
 import { scanDirectory, triggerFileSelect } from '../utils/fileSystemHelper';
+import CloudinaryUpload from './CloudinaryUpload';
 
 export default function Sidebar({
   currentTab,
@@ -13,10 +14,7 @@ export default function Sidebar({
   userProfile,
   onLogout,
   onTracksImported,
-  onRefreshLibrary,
-  spaces,
-  currentSpace,
-  setCurrentSpace
+  onRefreshLibrary
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -68,6 +66,9 @@ export default function Sidebar({
 
   const isNative = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
 
+  const adminUsernames = (import.meta.env.VITE_ADMIN_USERNAMES || '').split(',').map(u => u.trim().toLowerCase());
+  const isAdmin = userProfile?.displayName && adminUsernames.includes(userProfile.displayName.toLowerCase());
+
   return (
     <>
     <aside className="sidebar glass">
@@ -76,33 +77,7 @@ export default function Sidebar({
         <h2>RESON8</h2>
       </div>
 
-      {spaces && spaces.length > 1 && (
-        <div className="space-switcher" style={{ padding: '0 20px', marginBottom: '24px', display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          <style>{`
-            .space-switcher::-webkit-scrollbar { display: none; }
-          `}</style>
-          {spaces.map(s => (
-            <button 
-              key={s} 
-              onClick={() => setCurrentSpace(s)}
-              style={{
-                background: currentSpace === s ? 'var(--text-primary)' : 'rgba(255, 255, 255, 0.05)',
-                color: currentSpace === s ? 'var(--bg-deep)' : 'var(--text-secondary)',
-                border: '1px solid rgba(255,255,255,0.05)',
-                padding: '6px 16px',
-                borderRadius: '100px',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1)'
-              }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
+
 
       <nav className="sidebar-menu">
         <button
@@ -162,13 +137,16 @@ export default function Sidebar({
         <div className="local-import-section" style={{ marginBottom: '24px' }}>
           <button className="menu-item" onClick={handleSelectFolder} disabled={loading} style={{ background: 'rgba(213, 28, 57, 0.05)', color: 'var(--accent-deep)', border: '1px dashed var(--accent-rose)' }}>
             <FolderPlus size={18} />
-            <span>{loading ? 'Importing...' : 'Select Music Folder'}</span>
+            <span>{loading ? 'Importing...' : isNative ? 'Scan Device for Music' : 'Select Music Folder'}</span>
           </button>
         </div>
       )}
 
       {userMode === 'shared' && (
-        <div className="local-import-section" style={{ marginBottom: '24px' }}>
+        <div className="local-import-section" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {isAdmin && (
+            <CloudinaryUpload onUploadComplete={onRefreshLibrary} />
+          )}
           <button className="menu-item" onClick={async () => {
             try {
               setLoading(true);
