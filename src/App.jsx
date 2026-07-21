@@ -7,7 +7,7 @@ import PlayerBar from './components/PlayerBar';
 import NowPlayingOverlay from './components/NowPlayingOverlay';
 import MobileBottomNav from './components/MobileBottomNav';
 
-import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, getAllCachedAudioIds } from './utils/db';
+import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, getAllCachedAudioIds, saveAudioBlobToIDB } from './utils/db';
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
 import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
@@ -72,7 +72,7 @@ export default function App() {
   const handlersRef = useRef({}); // Store latest handlers for event listeners
   const upcomingTracksRef = useRef([]); // Store precalculated upcoming tracks
   const abortControllersRef = useRef(new Map()); // Store abort controllers for in-flight requests
-
+  const hasSmartCachedRef = useRef(false);
   // Initialize Native Plugins on Mount
   useEffect(() => {
     const initNative = async () => {
@@ -135,6 +135,24 @@ export default function App() {
       current = next;
     }
     return upcoming;
+  };
+
+  const smartCacheTrack = (track) => {
+    if (!track || !track.url || track.source === 'local') return;
+    
+    // We only want to cache Cloudinary URLs, not blob URLs or local device paths
+    if (!track.url.startsWith('http')) return;
+
+    console.log(`[SmartCache] Silently caching track for offline playback: ${track.name || track.title}`);
+    fetch(track.url)
+      .then(res => res.blob())
+      .then(blob => {
+        saveAudioBlobToIDB(track.id, blob, blob.type).then(() => {
+          // Tell UI we have a new offline track
+          getAllCachedAudioIds().then(ids => setCachedTrackIds(ids)).catch(()=>{});
+        }).catch(e => console.warn('[SmartCache] Failed to save blob:', e));
+      })
+      .catch(err => console.warn('[SmartCache] Fetch failed:', err));
   };
 
   const preloadTrack = async (track) => {
@@ -372,6 +390,13 @@ export default function App() {
               position: e.target.currentTime
             });
           } catch(err) {}
+        }
+        
+        // Smart Caching: Once we cross 15 seconds, trigger a background cache download for offline use.
+        // By waiting 15s, we ensure the initial network buffer is saturated and the user is actually listening (not skipping).
+        if (e.target.currentTime > 15 && !hasSmartCachedRef.current && currentTrackRef.current) {
+          hasSmartCachedRef.current = true;
+          smartCacheTrack(currentTrackRef.current);
         }
       }
     };
@@ -678,6 +703,7 @@ export default function App() {
     if (loadingTrack && loadingTrackIdRef.current === track.id) return; // Prevent spam clicking the same track
 
     upcomingTracksRef.current = []; // Clear cached upcoming tracks
+    hasSmartCachedRef.current = false; // Reset smart cache flag for the new track
 
     if (currentTrack) {
       setPlayedHistory(prev => [...prev, currentTrack]);
