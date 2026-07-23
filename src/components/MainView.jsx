@@ -226,6 +226,7 @@ export default function MainView({
           TableRow: (props) => {
             const t = props.item;
             const index = props['data-index'];
+            const isActive = currentTrack && currentTrack.id === t.id;
             const isSelected = selectedTrackIds.has(t.id);
             return (
               <tr 
