@@ -82,7 +82,7 @@ export async function saveAudioToCache(trackId, blob, mimeType) {
     
     // Upload audio AND extract artwork in parallel (saves ~1-3s vs sequential)
     const [downloadUrl, artworkResult] = await Promise.allSettled([
-      uploadToCloudinary(blob, 'video'),
+      uploadToCloudinary(blob, 'auto'),
       (async () => {
         try {
           const tags = await parseMetadata(blob);

@@ -58,9 +58,9 @@ export default function CloudinaryUpload({ onUploadComplete }) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('upload_preset', uploadPreset);
-        formData.append('resource_type', 'video'); // Audio uses the video API in Cloudinary
+        formData.append('resource_type', 'auto'); // Auto-detect audio to preserve format
         
-        const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/video/upload`, {
+        const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
           method: 'POST',
           body: formData,
         });
