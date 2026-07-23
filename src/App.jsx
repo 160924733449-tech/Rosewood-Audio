@@ -18,7 +18,7 @@ import { MediaSession } from '@capgo/capacitor-media-session';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { getQualityTransformedUrl } from './utils/audioQuality';
 import { parseMetadata, normalizeGenre, fetchITunesMetadata } from './utils/metadataHelper';
-import { getStreamUrl } from './utils/googleDriveHelper';
+
 import { trackEvent } from './utils/tracker';
 
 const IS_NATIVE = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
@@ -180,7 +180,7 @@ export default function App() {
 
       let finalTrack = track;
 
-      if (finalTrack.source === 'shared' || finalTrack.source === 'cloudinary') {
+      if (finalTrack.source === 'cloudinary') {
         if (preloadedUrlsRef.current[finalTrack.id]) {
           preloadUrl = preloadedUrlsRef.current[finalTrack.id];
         } else {
@@ -793,7 +793,7 @@ export default function App() {
     if (!playUrl) {
       setLoadingTrack(true);
       try {
-        if (track.source === 'shared' || track.source === 'cloudinary') {
+        if (track.source === 'cloudinary') {
           const streamResult = await getStreamUrlForTrack(track);
           if (loadingTrackIdRef.current !== track.id) return; // user cancelled!
           if (!streamResult || !streamResult.blobUrl) {
@@ -1012,7 +1012,8 @@ export default function App() {
     if (upcomingTracksRef.current && upcomingTracksRef.current.length > 0) {
       nextTrack = upcomingTracksRef.current.shift();
     } else {
-      nextTrack = await determineNextTrack(currentTrack);
+      const nextTracks = await determineNextTracks(currentTrack, 1);
+      nextTrack = nextTracks[0];
     }
 
     if (nextTrack) {
@@ -1346,8 +1347,8 @@ export default function App() {
   // 1. If Local Mode, BLOCK all Shared Mode (Cloud) tracks.
   // 2. If Shared Mode & Offline, ONLY show Shared tracks that are in the IDB offline cache.
   const displayTracks = tracksWithMacro.filter(t => {
-    if (userMode === 'local' && t.source === 'shared') return false;
-    if (userMode === 'shared' && isOffline && t.source === 'shared' && !cachedTrackIds.has(t.id)) return false;
+    if (userMode === 'local' && t.source === 'cloudinary') return false;
+    if (userMode === 'shared' && isOffline && t.source === 'cloudinary' && !cachedTrackIds.has(t.id)) return false;
     return true;
   });
 

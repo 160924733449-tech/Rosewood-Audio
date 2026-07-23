@@ -45,7 +45,7 @@ export default function MainView({
 
   const handleOfflineSync = async () => {
     if (syncingOffline || isOffline) return;
-    const cloudTracks = tracks.filter(t => t.source === 'shared');
+    const cloudTracks = tracks.filter(t => t.source === 'cloudinary');
     if (cloudTracks.length === 0) return;
 
     setSyncingOffline(true);

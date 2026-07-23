@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, getDocs, getDocsFromCache } from 'firebase/firestore';
+import { collection, getDocs, getDocsFromCache, deleteDoc, doc } from 'firebase/firestore';
 import { getAudioBlobFromIDB, saveAudioBlobToIDB, getAllCachedAudioIds } from './db';
 
 // In-memory URL cache — eliminates repeated IDB reads for the same track.
@@ -53,22 +53,35 @@ export async function warmStreamCache() {
 export async function fetchSharedLibraryTracks() {
   const parseDocs = (snapshot) => {
     const tracks = [];
-    snapshot.forEach(doc => tracks.push(doc.data()));
+    snapshot.forEach(d => {
+      const data = d.data();
+      // Only keep Cloudinary tracks
+      if (data.source === 'cloudinary' && data.url) {
+        tracks.push(data);
+      }
+    });
     return tracks;
   };
 
   try {
     const libraryRef = collection(db, 'libraryMetadata');
 
-    // 1. Try local Firestore cache first — instant, zero-network
+    // 1. Try local Firestore cache first
     try {
       const cachedSnapshot = await getDocsFromCache(libraryRef);
       if (!cachedSnapshot.empty) {
         const cachedTracks = parseDocs(cachedSnapshot);
         console.log(`[Library] Loaded ${cachedTracks.length} tracks from Firestore cache.`);
 
-        // 2. Silently refresh from server in the background
-        getDocs(libraryRef).catch(() => {});
+        // 2. Silently refresh from server in the background and clean up old drive tracks
+        getDocs(libraryRef).then(snapshot => {
+          snapshot.forEach(d => {
+            const data = d.data();
+            if (data.source === 'shared' || !data.url) {
+              deleteDoc(doc(db, 'libraryMetadata', d.id)).catch(() => {});
+            }
+          });
+        }).catch(() => {});
 
         return cachedTracks;
       }
@@ -79,6 +92,13 @@ export async function fetchSharedLibraryTracks() {
     // 3. Network fetch (first load or cache miss)
     const snapshot = await getDocs(libraryRef);
     if (!snapshot.empty) {
+      // Actively clean up dead Google Drive links from the database
+      snapshot.forEach(d => {
+        const data = d.data();
+        if (data.source === 'shared' || !data.url) {
+          deleteDoc(doc(db, 'libraryMetadata', d.id)).catch(() => {});
+        }
+      });
       return parseDocs(snapshot);
     }
     return [];
