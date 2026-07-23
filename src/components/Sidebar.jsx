@@ -69,13 +69,13 @@ export default function Sidebar({
 
       // Upload local files to Cloudinary if any
       if (playlistImageFiles.length > 0) {
-        for (let i = 0; i < playlistImageFiles.length; i++) {
-          try {
-            const url = await uploadToCloudinary(playlistImageFiles[i], 'image');
-            coverImages.push(url);
-          } catch (err) {
-            console.error('Failed to upload playlist image:', err);
-          }
+        try {
+          const uploadPromises = playlistImageFiles.map(file => uploadToCloudinary(file, 'image'));
+          const urls = await Promise.all(uploadPromises);
+          coverImages = [...coverImages, ...urls];
+        } catch (err) {
+          console.error('Failed to upload some playlist images:', err);
+          alert('Failed to upload some images. Please check your console.');
         }
       }
       
@@ -252,6 +252,7 @@ export default function Sidebar({
                       onChange={(e) => {
                         const newFiles = Array.from(e.target.files);
                         setPlaylistImageFiles(prev => [...prev, ...newFiles]);
+                        e.target.value = null; // Clear so they can re-select if needed
                       }}
                       style={{ display: 'none' }}
                     />
