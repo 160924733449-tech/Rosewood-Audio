@@ -2975,3 +2975,83 @@ body {
     max-width: 400px !important;
   }
 }
+
+/* ADMIN BRUTALIST OVERRIDES */
+#root.admin-mode {
+  --bg-deep: #fff;
+  --bg-base: #f0f0f0;
+  --bg-surface: #fff;
+  --bg-surface-hover: #ccc;
+  --border-subtle: #000;
+  
+  --text-primary: #000;
+  --text-secondary: #333;
+  --text-muted: #666;
+  
+  --accent-deep: #000;
+  --accent-rose: #000;
+  --accent-coral: #000;
+  
+  --gradient-accent: #000;
+  --gradient-soft: #ddd;
+  
+  --font-sans: monospace;
+  --font-serif: monospace;
+  
+  --shadow-sm: none;
+  --shadow-lg: 4px 4px 0px 0px #000;
+  --shadow-glow: none;
+  
+  --glass-bg: #fff;
+  --glass-border: #000;
+  
+  background: #fff !important;
+}
+
+#root.admin-mode * {
+  border-radius: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+#root.admin-mode button, 
+#root.admin-mode .menu-item, 
+#root.admin-mode .music-card,
+#root.admin-mode .glass {
+  border: 2px solid #000 !important;
+  background: #fff !important;
+  color: #000 !important;
+  box-shadow: 2px 2px 0px 0px #000 !important;
+}
+
+#root.admin-mode button:hover, 
+#root.admin-mode .menu-item:hover, 
+#root.admin-mode .music-card:hover {
+  background: #000 !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  transform: translate(2px, 2px) !important;
+}
+
+#root.admin-mode .active {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+#root.admin-mode img {
+  filter: grayscale(100%) contrast(1.2) !important;
+}
+
+#root.admin-mode .track-row:hover {
+  background: #eee !important;
+}
+
+#root.admin-mode .player-bar {
+  border-top: 4px solid #000 !important;
+  background: #fff !important;
+}
+
+#root.admin-mode .sidebar {
+  border-right: 4px solid #000 !important;
+  background: #fff !important;
+}
