@@ -54,23 +54,43 @@ export default function CloudinaryUpload({ onUploadComplete }) {
           console.warn(`Failed to parse ID3 tags for ${file.name}`, err);
         }
         
-        // 2. Upload to Cloudinary
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', uploadPreset);
-        formData.append('resource_type', 'auto'); // Auto-detect audio to preserve format
+        // 2. Upload to Cloudinary using Chunked Upload (Bypasses 10MB limit)
+        const CHUNK_SIZE = 10000000; // 10MB chunks
+        const uniqueUploadId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
         
-        const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!uploadResponse.ok) {
-          throw new Error('Cloudinary upload failed');
+        let secureUrl = null;
+        let cloudData = null;
+
+        for (let currentChunk = 0; currentChunk < totalChunks; currentChunk++) {
+          const start = currentChunk * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          
+          const formData = new FormData();
+          formData.append('file', chunk);
+          formData.append('upload_preset', uploadPreset);
+          formData.append('resource_type', 'auto');
+          
+          const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+            method: 'POST',
+            headers: {
+              'X-Unique-Upload-Id': uniqueUploadId,
+              'Content-Range': `bytes ${start}-${end - 1}/${file.size}`
+            },
+            body: formData,
+          });
+          
+          if (!uploadResponse.ok) {
+            throw new Error(`Cloudinary upload failed at chunk ${currentChunk + 1}`);
+          }
+          
+          const result = await uploadResponse.json();
+          if (currentChunk === totalChunks - 1) {
+            cloudData = result;
+            secureUrl = cloudData.secure_url;
+          }
         }
-        
-        const cloudData = await uploadResponse.json();
-        const secureUrl = cloudData.secure_url;
         
         // 3. Save to Firestore
         const trackId = `cloudinary:${cloudData.public_id.replace(/\//g, '_')}`;
