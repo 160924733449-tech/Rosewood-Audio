@@ -242,9 +242,9 @@ export default function Sidebar({
                   <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Cover Images</label>
                   
                   {/* File Upload UI */}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'var(--bg-deep)', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', marginBottom: '12px', width: 'fit-content', transition: 'all 0.2s' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'var(--bg-deep)', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', marginBottom: '8px', width: 'fit-content', transition: 'all 0.2s' }}>
                     <Camera size={16} />
-                    <span style={{ fontSize: '13px' }}>{playlistImageFiles.length > 0 ? `${playlistImageFiles.length} file(s) selected` : 'Upload Images'}</span>
+                    <span style={{ fontSize: '13px' }}>Upload Image</span>
                     <input 
                       type="file" 
                       multiple="multiple"
@@ -257,6 +257,27 @@ export default function Sidebar({
                       style={{ display: 'none' }}
                     />
                   </label>
+
+                  {/* Selected Files List */}
+                  {playlistImageFiles.length > 0 && (
+                    <div style={{ marginBottom: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '8px 12px' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 'bold', textTransform: 'uppercase' }}>Selected Images ({playlistImageFiles.length})</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {playlistImageFiles.map((file, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: 'var(--text-primary)' }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>{file.name}</span>
+                            <button 
+                              type="button" 
+                              onClick={() => setPlaylistImageFiles(prev => prev.filter((_, i) => i !== idx))}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--accent-coral)', cursor: 'pointer', padding: '2px 4px', fontSize: '10px' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Fallback Textarea for URLs */}
                   <textarea
