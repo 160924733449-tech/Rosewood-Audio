@@ -249,7 +249,10 @@ export default function Sidebar({
                       type="file" 
                       multiple 
                       accept="image/*" 
-                      onChange={(e) => setPlaylistImageFiles(Array.from(e.target.files))}
+                      onChange={(e) => {
+                        const newFiles = Array.from(e.target.files);
+                        setPlaylistImageFiles(prev => [...prev, ...newFiles]);
+                      }}
                       style={{ display: 'none' }}
                     />
                   </label>
