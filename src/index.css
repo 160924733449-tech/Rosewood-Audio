@@ -3089,3 +3089,43 @@ body {
   border-right: 4px solid #000 !important;
   background: #fff !important;
 }
+
+#root.admin-mode .track-row {
+  height: 28px !important;
+  font-size: 11px !important;
+  padding: 0 !important;
+}
+
+#root.admin-mode .track-row td {
+  padding: 2px 4px !important;
+  height: 28px !important;
+  vertical-align: middle;
+}
+
+#root.admin-mode .player-bar {
+  height: auto !important;
+  padding: 8px 32px !important;
+}
+
+/* Admin Image Preview Popup */
+.admin-artwork-preview {
+  position: absolute;
+  top: 50%;
+  left: 24px;
+  transform: translateY(-50%);
+  z-index: 1000;
+  border: 2px solid #000;
+  box-shadow: 4px 4px 0px #000;
+  background: #fff;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-artwork-preview img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  filter: none !important;
+}

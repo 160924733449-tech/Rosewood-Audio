@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical, Download, LogOut, Settings, Trash2, RefreshCw, Shuffle } from 'lucide-react';
+import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical, Download, LogOut, Settings, Trash2, RefreshCw, Shuffle, Image } from 'lucide-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { getRecommendations, getTopMatches } from '../utils/recommendationEngine';
 import { SkeletonTrackList } from './SkeletonTrack';
@@ -45,6 +45,7 @@ export default function MainView({
   const [editPlaylistName, setEditPlaylistName] = useState('');
   const [syncingOffline, setSyncingOffline] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
+  const [previewImageId, setPreviewImageId] = useState(null);
 
   // Rotating Cover State
   const [coverRotationTick, setCoverRotationTick] = useState(0);
@@ -339,6 +340,22 @@ export default function MainView({
                           <Music size={14} />
                         </div>
                       )
+                    )}
+                    {isAdmin && (
+                      <div style={{ position: 'relative' }}>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setPreviewImageId(previewImageId === t.id ? null : t.id); }}
+                          style={{ background: 'transparent', border: 'none', color: t.artwork ? '#000' : 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                        >
+                          <Image size={16} />
+                        </button>
+                        {previewImageId === t.id && t.artwork && (
+                          <div className="admin-artwork-preview" onClick={(e) => e.stopPropagation()}>
+                            <img src={t.artwork} alt="Preview" />
+                            <button onClick={() => setPreviewImageId(null)} style={{ background: '#000', color: '#fff', border: 'none', fontWeight: 'bold', fontSize: '10px', padding: '2px', cursor: 'pointer' }}>CLOSE</button>
+                          </div>
+                        )}
+                      </div>
                     )}
                     <div className="track-title-details">
                       <span className="track-table-title" style={isAdmin ? { fontFamily: 'monospace', fontWeight: 'bold' } : {}}>{t.title || 'Untitled'}</span>

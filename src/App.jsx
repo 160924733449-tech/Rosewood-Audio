@@ -1483,8 +1483,9 @@ export default function App() {
           onBulkDeleteTracks={handleBulkDeleteTracks}
         />
       </div>
-      <PlayerBar
-        currentTrack={currentTrack}
+      {(!isAdmin || currentTrack) && (
+        <PlayerBar
+          currentTrack={currentTrack}
         loadingTrack={loadingTrack}
         isPlaying={isPlaying}
         onPlayPauseToggle={handlePlayPauseToggle}
@@ -1505,6 +1506,7 @@ export default function App() {
         setAudioQuality={setAudioQuality}
         onExpand={() => setIsNowPlayingExpanded(true)}
       />
+      )}
 
       {isNowPlayingExpanded && currentTrack && (
         <NowPlayingOverlay

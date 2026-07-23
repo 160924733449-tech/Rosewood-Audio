@@ -122,13 +122,15 @@ export default function Sidebar({
           <span>Library</span>
         </button>
 
-        <button
-          className={`menu-item ${currentTab === 'foryou' ? 'active' : ''}`}
-          onClick={() => handleMenuClick('foryou')}
-        >
-          <Sparkles size={18} />
-          <span>For You</span>
-        </button>
+        {!isAdmin && (
+          <button
+            className={`menu-item ${currentTab === 'foryou' ? 'active' : ''}`}
+            onClick={() => handleMenuClick('foryou')}
+          >
+            <Sparkles size={18} />
+            <span>For You</span>
+          </button>
+        )}
 
         <button
           className={`menu-item ${currentTab === 'playlists_hub' ? 'active' : ''}`}
