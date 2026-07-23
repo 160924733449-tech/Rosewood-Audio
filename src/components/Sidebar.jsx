@@ -247,8 +247,8 @@ export default function Sidebar({
                     <span style={{ fontSize: '13px' }}>{playlistImageFiles.length > 0 ? `${playlistImageFiles.length} file(s) selected` : 'Upload Images'}</span>
                     <input 
                       type="file" 
-                      multiple 
-                      accept="image/*" 
+                      multiple="multiple"
+                      accept="image/png, image/jpeg, image/jpg, image/webp" 
                       onChange={(e) => {
                         const newFiles = Array.from(e.target.files);
                         setPlaylistImageFiles(prev => [...prev, ...newFiles]);
