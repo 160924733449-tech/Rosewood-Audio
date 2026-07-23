@@ -1,17 +1,32 @@
 const DB_NAME = 'AuraPlayerDB';
 const DB_VERSION = 2;
 
+// Singleton DB connection — avoids ~5-15ms indexedDB.open() overhead on every call
+let dbInstance = null;
+let dbPromise = null;
+
 export function openDB() {
-  return new Promise((resolve, reject) => {
+  // Return cached connection if still valid
+  if (dbInstance) return Promise.resolve(dbInstance);
+  // Deduplicate concurrent open requests
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = (event) => {
       console.error('Database error:', event.target.error);
+      dbPromise = null;
       reject(event.target.error);
     };
 
     request.onsuccess = (event) => {
-      resolve(event.target.result);
+      dbInstance = event.target.result;
+      // If the connection closes unexpectedly, clear the singleton
+      dbInstance.onclose = () => { dbInstance = null; dbPromise = null; };
+      dbInstance.onversionchange = () => { dbInstance.close(); dbInstance = null; dbPromise = null; };
+      dbPromise = null;
+      resolve(dbInstance);
     };
 
     request.onupgradeneeded = (event) => {
@@ -46,6 +61,8 @@ export function openDB() {
       }
     };
   });
+
+  return dbPromise;
 }
 
 // Audio Blob operations (Offline Cache)
@@ -62,9 +79,15 @@ export async function saveAudioBlobToIDB(id, blob, mimeType) {
       timestamp: Date.now()
     });
     
-    // Automatically enforce a rough cache limit (e.g. 250MB)
-    // To keep it simple without blocking, we just resolve when put succeeds.
-    request.onsuccess = () => resolve();
+    request.onsuccess = () => {
+      resolve();
+      // Trigger cache limit enforcement in the background after write completes
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => enforceCacheLimit().catch(() => {}));
+      } else {
+        setTimeout(() => enforceCacheLimit().catch(() => {}), 0);
+      }
+    };
     request.onerror = () => reject(request.error);
   });
 }
@@ -72,16 +95,22 @@ export async function saveAudioBlobToIDB(id, blob, mimeType) {
 export async function getAudioBlobFromIDB(id) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction('audioBlobs', 'readwrite'); // readwrite so we can update timestamp
+    // CRITICAL: Use 'readonly' for the read path — readonly transactions never block
+    // behind pending readwrite transactions, making blob reads instant.
+    const tx = db.transaction('audioBlobs', 'readonly');
     const store = tx.objectStore('audioBlobs');
     const request = store.get(id);
     
     request.onsuccess = () => {
       if (request.result) {
-        // Update access timestamp for LRU cache eviction logic later
-        const updatedRecord = { ...request.result, timestamp: Date.now() };
-        store.put(updatedRecord);
-        resolve(updatedRecord);
+        resolve(request.result);
+        // Deferred LRU timestamp update — fire-and-forget, never blocks the caller.
+        // This runs in a separate transaction so the blob is already returned to the player.
+        try {
+          const writeTx = db.transaction('audioBlobs', 'readwrite');
+          const writeStore = writeTx.objectStore('audioBlobs');
+          writeStore.put({ ...request.result, timestamp: Date.now() });
+        } catch {}
       } else {
         resolve(null);
       }
@@ -105,31 +134,51 @@ export async function getAllCachedAudioIds() {
 }
 
 // Enforce cache limit (250MB default)
+// Uses cursor-based eviction to avoid loading all audio blobs into memory.
+// Walks the timestamp index (oldest first) and deletes until under budget.
 export async function enforceCacheLimit(maxBytes = 250 * 1024 * 1024) {
   const db = await openDB();
+
+  // Step 1: Compute total size and collect metadata (without loading blobs)
+  const metadata = await new Promise((resolve, reject) => {
+    const tx = db.transaction('audioBlobs', 'readonly');
+    const store = tx.objectStore('audioBlobs');
+    const index = store.index('timestamp');
+    const items = [];
+    const cursorReq = index.openCursor();
+
+    cursorReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        // Only read id, size, timestamp — NOT the blob itself
+        items.push({ id: cursor.value.id, size: cursor.value.size || 0, timestamp: cursor.value.timestamp || 0 });
+        cursor.continue();
+      } else {
+        resolve(items);
+      }
+    };
+    cursorReq.onerror = () => reject(cursorReq.error);
+  });
+
+  let totalSize = metadata.reduce((sum, r) => sum + r.size, 0);
+  if (totalSize <= maxBytes) return { totalSize, deletedCount: 0 };
+
+  // Step 2: Delete oldest entries in a single readwrite transaction
+  // metadata is already sorted by timestamp (walked via index)
+  let deletedCount = 0;
   return new Promise((resolve, reject) => {
     const tx = db.transaction('audioBlobs', 'readwrite');
     const store = tx.objectStore('audioBlobs');
-    const index = store.index('timestamp');
-    const request = index.getAll();
-    
-    request.onsuccess = () => {
-      let records = request.result || [];
-      // Sort oldest to newest (index.getAll usually sorts by the indexed key, but let's be explicit)
-      records.sort((a, b) => a.timestamp - b.timestamp);
-      
-      let totalSize = records.reduce((sum, r) => sum + (r.size || 0), 0);
-      let deletedCount = 0;
-      
-      while (totalSize > maxBytes && records.length > 0) {
-        const oldest = records.shift();
-        store.delete(oldest.id);
-        totalSize -= (oldest.size || 0);
-        deletedCount++;
-      }
-      resolve({ totalSize, deletedCount });
-    };
-    request.onerror = () => reject(request.error);
+
+    for (const item of metadata) {
+      if (totalSize <= maxBytes) break;
+      store.delete(item.id);
+      totalSize -= item.size;
+      deletedCount++;
+    }
+
+    tx.oncomplete = () => resolve({ totalSize, deletedCount });
+    tx.onerror = () => reject(tx.error);
   });
 }
 

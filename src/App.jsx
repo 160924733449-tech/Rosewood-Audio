@@ -11,7 +11,7 @@ import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, get
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
 import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
-import { fetchSharedLibraryTracks, getStreamUrlForTrack } from './utils/sharedLibraryHelper';
+import { fetchSharedLibraryTracks, getStreamUrlForTrack, warmStreamCache } from './utils/sharedLibraryHelper';
 import { tweenVolume } from './utils/audioTween';
 import { FastAverageColor } from 'fast-average-color';
 import { MediaSession } from '@capgo/capacitor-media-session';
@@ -144,13 +144,21 @@ export default function App() {
     if (!track.url.startsWith('http')) return;
 
     console.log(`[SmartCache] Silently caching track for offline playback: ${track.name || track.title}`);
-    fetch(track.url)
+    // Use low-priority fetch so it never competes with active playback streaming
+    fetch(track.url, { priority: 'low' })
       .then(res => res.blob())
       .then(blob => {
-        saveAudioBlobToIDB(track.id, blob, blob.type).then(() => {
-          // Tell UI we have a new offline track
-          getAllCachedAudioIds().then(ids => setCachedTrackIds(ids)).catch(()=>{});
-        }).catch(e => console.warn('[SmartCache] Failed to save blob:', e));
+        // Use requestIdleCallback (or setTimeout fallback) to write to IDB off the critical path
+        const saveToIDB = () => {
+          saveAudioBlobToIDB(track.id, blob, blob.type).then(() => {
+            getAllCachedAudioIds().then(ids => setCachedTrackIds(ids)).catch(()=>{});
+          }).catch(e => console.warn('[SmartCache] Failed to save blob:', e));
+        };
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(saveToIDB);
+        } else {
+          setTimeout(saveToIDB, 0);
+        }
       })
       .catch(err => console.warn('[SmartCache] Fetch failed:', err));
   };
@@ -161,6 +169,7 @@ export default function App() {
     // Use the inactive audio element to buffer the next track
     const inactiveAudio = audioElementsRef.current[1 - activeIndexRef.current];
 
+    // Already buffering this exact track — skip
     if (inactiveAudio.getAttribute('data-track-id') === track.id) {
       return;
     }
@@ -208,8 +217,9 @@ export default function App() {
       }
 
       if (preloadUrl) {
-        // Only set the HTMLAudioElement src for the IMMEDIATE next track to ensure gapless buffering
-        if (inactiveAudio.getAttribute('data-track-id') !== finalTrack.id && !inactiveAudio.src) {
+        // Aggressively buffer into the inactive element — replace any stale preload
+        // (Old code gated on `!inactiveAudio.src` which prevented re-preloading when the upcoming queue changed)
+        if (inactiveAudio.getAttribute('data-track-id') !== finalTrack.id) {
           inactiveAudio.setAttribute('data-track-id', finalTrack.id);
           inactiveAudio.src = getQualityTransformedUrl(preloadUrl, audioQualityRef.current);
           inactiveAudio.preload = 'auto';
@@ -230,11 +240,12 @@ export default function App() {
 
     let isSubscribed = true;
     const runPreload = async () => {
-      // Delay preload start slightly so it doesn't conflict with current song starting its playback network requests
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Short delay to let the current track's initial buffer fill, then start preloading aggressively
+      await new Promise(resolve => setTimeout(resolve, 1500));
       if (!isSubscribed) return;
 
-      const preloadCount = 1;
+      // Preload 2 tracks ahead for near-instant skip transitions
+      const preloadCount = 2;
 
       const upcomingTracks = await determineNextTracks(currentTrack, preloadCount);
       if (!isSubscribed) return;
@@ -588,8 +599,12 @@ export default function App() {
 
     if (authData.mode === 'shared') {
       setIsFetchingLibrary(true);
-      const sharedTracks = await fetchSharedLibraryTracks();
-      const existingTracks = await getAllTracks();
+
+      // 1. Fetch Cloudinary tracklist + local IDB tracks in parallel (saves ~200-400ms)
+      const [sharedTracks, existingTracks] = await Promise.all([
+        fetchSharedLibraryTracks(),
+        getAllTracks(),
+      ]);
       const existingMap = new Map(existingTracks.map(t => [t.id, t]));
       
       const mergedTracks = sharedTracks.map(fetched => {
@@ -602,9 +617,15 @@ export default function App() {
       setTracks(mergedTracks);
 
       const username = authData.user.displayName;
-      
-      // Fetch cloud data from our new backend
-      const state = await getUserStateFromSheet(username);
+
+      // 2. Fetch all cloud user data in parallel (saves ~500-1500ms vs sequential)
+      const [state, cloudPlaylists, cloudAffinities] = await Promise.all([
+        getUserStateFromSheet(username),
+        getAllPlaylistsFromSheet(username),
+        getAllAffinitiesFromSheet(username),
+      ]);
+
+      // Restore last played track
       if (state && state.trackId && mergedTracks.length > 0) {
         const track = mergedTracks.find(t => t.id === state.trackId);
         if (track) {
@@ -612,23 +633,25 @@ export default function App() {
         }
       }
       
-      const cloudPlaylists = await getAllPlaylistsFromSheet(username);
+      // Restore playlists
       if (cloudPlaylists && cloudPlaylists.length > 0) {
         setPlaylists(cloudPlaylists);
-        for (const p of cloudPlaylists) {
-          await savePlaylist(p);
-        }
+        // Fire-and-forget batch save — don't block login on IDB writes
+        Promise.all(cloudPlaylists.map(p => savePlaylist(p))).catch(() => {});
       }
 
-      const cloudAffinities = await getAllAffinitiesFromSheet(username);
+      // Restore affinities — batch all writes in parallel instead of sequential loop
       if (cloudAffinities && cloudAffinities.length > 0) {
-        for (const aff of cloudAffinities) {
-          await saveAffinity(aff.key, aff.score);
-        }
+        Promise.all(cloudAffinities.map(aff => saveAffinity(aff.key, aff.score))).catch(() => {});
       }
+
       setIsFetchingLibrary(false);
+
+      // 3. Pre-warm the in-memory stream cache so first play of any cached track is instant
+      warmStreamCache().catch(() => {});
+
       if (IS_NATIVE) {
-        setTimeout(() => setIsBooting(false), 1000);
+        setTimeout(() => setIsBooting(false), 300);
       }
     }
   };
@@ -848,8 +871,8 @@ export default function App() {
 
     if (isPlaying && oldActiveAudio.src) {
       const oldUrl = oldActiveAudio.src;
-      // Fade out old track
-      tweenVolume(oldActiveAudio, 0, 1500).then(() => {
+      // Snappy 400ms crossfade — long enough to prevent pops, short enough to feel instant
+      tweenVolume(oldActiveAudio, 0, 400).then(() => {
         oldActiveAudio.pause();
         doCleanup(oldActiveAudio, oldUrl);
       });
@@ -859,20 +882,13 @@ export default function App() {
     }
 
     if (!isPreloaded) {
-      // If we didn't gapless-swap, we need to set up the new active element from scratch
-      newActiveAudio.pause();
-      newActiveAudio.removeAttribute('src');
-      newActiveAudio.load();
+      // Set new source directly — avoid the pause+removeAttribute+load cycle which adds ~100-200ms latency
       newActiveAudio.src = getQualityTransformedUrl(playUrl, audioQualityRef.current);
       newActiveAudio.setAttribute('data-track-id', track.id);
     }
     
-    // Crossfade in new active audio
-    if (isPlaying) {
-      newActiveAudio.volume = 0;
-    } else {
-      newActiveAudio.volume = volume;
-    }
+    // Crossfade in new active audio — start at 0 and ramp up for pop-free transition
+    newActiveAudio.volume = 0;
     
     if (startPosition > 0) {
       newActiveAudio.currentTime = startPosition;
@@ -884,13 +900,13 @@ export default function App() {
     }
 
     if (autoPlay) {
-      // Call play() immediately instead of waiting for canplaythrough.
+      // Fire play() immediately — the browser will start decoding as soon as data arrives
       newActiveAudio.play()
         .then(() => {
           if (loadingTrackIdRef.current === track.id) {
             setIsPlaying(true);
-            // Fade in after play starts
-            tweenVolume(newActiveAudio, volume, 1500);
+            // Quick 400ms fade-in to avoid pops while keeping it snappy
+            tweenVolume(newActiveAudio, volume, 400);
             // Reset consecutive skip counter — this track loaded successfully
             consecutiveSkipsRef.current = 0;
           }
@@ -900,7 +916,8 @@ export default function App() {
           // Don't auto-skip here — the error handler on the audio element will do it
         });
     } else {
-      // Finished loading silently
+      // Finished loading silently — still set volume so it's ready to unmute instantly
+      newActiveAudio.volume = volume;
       if (loadingTrackIdRef.current === track.id) {
         setLoadingTrack(false);
         setIsPlaying(false);

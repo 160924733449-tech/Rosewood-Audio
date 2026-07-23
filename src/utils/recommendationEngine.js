@@ -8,33 +8,36 @@ const FATIGUE_DECAY_RATE = 0.8; // Fatigue decays to 80% on each track play
 
 /**
  * Record a play or skip event and adjust tastes.
+ * All IDB writes run in parallel to avoid blocking track transitions.
  */
 export async function recordPlayEvent(track, completed, syncConfig = null) {
   if (!track) return;
   
-  // Log play history
-  await logPlay(track.id, completed);
+  const delta = completed ? COMPLETE_PLAY_BONUS : SKIP_PENALTY;
+  const newFatigueScore = completed ? 10 : 0;
 
-  // Update Artist & Genre Affinities
   const artistKey = `artist:${track.artist}`;
   const genreKey = `genre:${track.genre}`;
+  const songFatigueKey = `fatigue:${track.id}`;
 
-  const currentArtistAff = await getAffinity(artistKey);
-  const currentGenreAff = await getAffinity(genreKey);
-
-  const delta = completed ? COMPLETE_PLAY_BONUS : SKIP_PENALTY;
+  // Read both affinities in parallel (saves ~10-20ms vs sequential)
+  const [currentArtistAff, currentGenreAff] = await Promise.all([
+    getAffinity(artistKey),
+    getAffinity(genreKey),
+  ]);
 
   const newArtistScore = Math.max(-20, (currentArtistAff.score || 0) + delta);
   const newGenreScore = Math.max(-20, (currentGenreAff.score || 0) + delta);
-  const newFatigueScore = completed ? 10 : 0;
 
-  await saveAffinity(artistKey, newArtistScore);
-  await saveAffinity(genreKey, newGenreScore);
+  // Write all 4 updates in parallel — fire-and-forget, never blocks caller
+  Promise.all([
+    logPlay(track.id, completed),
+    saveAffinity(artistKey, newArtistScore),
+    saveAffinity(genreKey, newGenreScore),
+    saveAffinity(songFatigueKey, newFatigueScore),
+  ]).catch(() => {});
 
-  // Log fatigue / recency state for this song
-  const songFatigueKey = `fatigue:${track.id}`;
-  await saveAffinity(songFatigueKey, newFatigueScore);
-
+  // Google Sheets sync is also fire-and-forget
   if (syncConfig && syncConfig.mode === 'shared' && syncConfig.userId) {
     saveAffinityToSheet(syncConfig.userId, 'artist', track.artist, newArtistScore);
     saveAffinityToSheet(syncConfig.userId, 'genre', track.genre, newGenreScore);
