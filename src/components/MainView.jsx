@@ -541,7 +541,7 @@ export default function MainView({
                 <h2>Recently Played</h2>
               </div>
               <div className="dashboard-grid">
-                {tracks.slice(0, 6).map(t => (
+                {(isAdmin ? tracks : tracks.slice(0, 6)).map(t => (
                   <div key={t.id} className="music-card glass hover-scale" onClick={() => onPlayTrack(t, tracks)}>
                     <div className="card-art-container">
                       {t.artwork ? (

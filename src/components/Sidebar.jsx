@@ -106,13 +106,15 @@ export default function Sidebar({
 
 
       <nav className="sidebar-menu">
-        <button
-          className={`menu-item ${currentTab === 'home' ? 'active' : ''}`}
-          onClick={() => handleMenuClick('home')}
-        >
-          <Home size={18} />
-          <span>Home</span>
-        </button>
+        {!isAdmin && (
+          <button
+            className={`menu-item ${currentTab === 'home' ? 'active' : ''}`}
+            onClick={() => handleMenuClick('home')}
+          >
+            <Home size={18} />
+            <span>Home</span>
+          </button>
+        )}
 
         <button
           className={`menu-item ${currentTab === 'library' ? 'active' : ''}`}

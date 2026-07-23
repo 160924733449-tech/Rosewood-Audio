@@ -73,6 +73,16 @@ export default function App() {
   const upcomingTracksRef = useRef([]); // Store precalculated upcoming tracks
   const abortControllersRef = useRef(new Map()); // Store abort controllers for in-flight requests
   const hasSmartCachedRef = useRef(false);
+
+  const adminUsernames = (import.meta.env.VITE_ADMIN_USERNAMES || '').split(',').map(u => u.trim().toLowerCase());
+  const isAdmin = userProfile?.displayName && adminUsernames.includes(userProfile.displayName.toLowerCase());
+
+  useEffect(() => {
+    if (isAdmin && (currentTab === 'home' || currentTab === 'foryou')) {
+      setCurrentTab('library');
+    }
+  }, [isAdmin, currentTab]);
+
   // Initialize Native Plugins on Mount
   useEffect(() => {
     const initNative = async () => {
@@ -1418,9 +1428,6 @@ export default function App() {
   if (!loggedIn) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
-
-  const adminUsernames = (import.meta.env.VITE_ADMIN_USERNAMES || '').split(',').map(u => u.trim().toLowerCase());
-  const isAdmin = userProfile?.displayName && adminUsernames.includes(userProfile.displayName.toLowerCase());
 
   // Pre-process tracks to inject macroGenre for fast filtering
   const tracksWithMacro = tracks.map(t => ({
