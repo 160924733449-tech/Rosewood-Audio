@@ -46,6 +46,17 @@ export default function MainView({
   const [syncingOffline, setSyncingOffline] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
 
+  // Rotating Cover State
+  const [coverRotationTick, setCoverRotationTick] = useState(0);
+
+  useEffect(() => {
+    // Deliberate, slow rotation for playlist cover images (30 seconds)
+    const interval = setInterval(() => {
+      setCoverRotationTick(prev => prev + 1);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Admin Mass Selection State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedTrackIds, setSelectedTrackIds] = useState(new Set());
@@ -142,11 +153,37 @@ export default function MainView({
     }
   };
 
-  const renderPlaylistCollage = (playlist) => {
-    if (playlist.dp) {
-       return <img src={playlist.dp} className="playlist-dp-full" alt="Cover" loading="lazy" decoding="async" />;
+  const renderPlaylistCollage = (pl) => {
+    if (pl.dp) {
+      return <img src={pl.dp} className="playlist-dp-full" alt="Cover" loading="lazy" decoding="async" />;
     }
-    const plTracks = tracks.filter(t => playlist.tracks.includes(t.id));
+    if (pl.coverImages && pl.coverImages.length > 0) {
+      const idx = coverRotationTick % pl.coverImages.length;
+      return (
+        <div className="rotating-cover-container" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', borderRadius: 'inherit' }}>
+          {pl.coverImages.map((img, i) => (
+            <img 
+              key={`${img}-${i}`} 
+              src={img} 
+              className={`playlist-dp-full rotating-cover ${i === idx ? 'active' : ''}`} 
+              alt="Cover" 
+              loading="lazy" 
+              decoding="async" 
+            />
+          ))}
+        </div>
+      );
+    }
+
+    if (!pl.tracks || pl.tracks.length === 0) {
+      return (
+        <div className="card-placeholder-art playlist-dp-placeholder">
+          <FolderPlus size={32} />
+        </div>
+      );
+    }
+    
+    const plTracks = tracks.filter(t => pl.tracks.includes(t.id));
     const artworks = plTracks.filter(t => t.artwork).map(t => t.artwork);
     const top4 = [...new Set(artworks)].slice(0, 4);
     

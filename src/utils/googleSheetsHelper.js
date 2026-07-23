@@ -150,3 +150,57 @@ export async function appendHistoryToSheet(username, trackId, trackName, duratio
     return null;
   }
 }
+
+// --- GLOBAL PLAYLISTS (Shared across all users) ---
+
+export async function saveGlobalPlaylist(playlistId, playlistName, trackIds, coverImages = [], createdBy = 'admin') {
+  try {
+    const playlistRef = doc(db, `shared_playlists/${playlistId}`);
+    await setDoc(playlistRef, {
+      playlistId,
+      playlistName,
+      trackIds,
+      coverImages,
+      createdBy,
+      isGlobal: true,
+      updatedAt: Date.now()
+    });
+    return { saved: true };
+  } catch (err) {
+    console.error("Save global playlist error:", err);
+    return null;
+  }
+}
+
+export async function deleteGlobalPlaylist(playlistId) {
+  try {
+    const playlistRef = doc(db, `shared_playlists/${playlistId}`);
+    await deleteDoc(playlistRef);
+    return { deleted: true };
+  } catch (err) {
+    console.error("Delete global playlist error:", err);
+    return null;
+  }
+}
+
+export async function getGlobalPlaylists() {
+  try {
+    const playlistsRef = collection(db, `shared_playlists`);
+    const snap = await getDocs(playlistsRef);
+    const playlists = [];
+    snap.forEach(doc => {
+      playlists.push({
+        id: doc.data().playlistId,
+        name: doc.data().playlistName,
+        tracks: doc.data().trackIds || [],
+        coverImages: doc.data().coverImages || [],
+        isGlobal: true,
+        createdBy: doc.data().createdBy || 'admin'
+      });
+    });
+    return playlists;
+  } catch (err) {
+    console.error("Get global playlists error:", err);
+    return [];
+  }
+}

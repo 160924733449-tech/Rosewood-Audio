@@ -45,16 +45,24 @@ export default function Sidebar({
 
   const [showPlaylistPrompt, setShowPlaylistPrompt] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
+  const [playlistImages, setPlaylistImages] = useState('');
 
   const triggerAddPlaylist = () => {
     setPlaylistName('');
+    setPlaylistImages('');
     setShowPlaylistPrompt(true);
   };
 
   const submitPlaylist = (e) => {
     e.preventDefault();
     if (playlistName && playlistName.trim()) {
-      onCreatePlaylist(playlistName.trim());
+      const coverImages = playlistImages
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+      
+      // If admin creates a playlist, make it global
+      onCreatePlaylist(playlistName.trim(), isAdmin, coverImages);
     }
     setShowPlaylistPrompt(false);
   };
@@ -196,18 +204,38 @@ export default function Sidebar({
         <div className="modal-overlay">
           <div className="modal-content glass">
             <h3>Create Playlist</h3>
-            <form onSubmit={submitPlaylist}>
-              <input
-                type="text"
-                autoFocus
-                placeholder="Enter playlist name..."
-                value={playlistName}
-                onChange={(e) => setPlaylistName(e.target.value)}
-                className="modal-input"
-              />
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={closePlaylistPrompt}>Cancel</button>
-                <button type="submit" className="btn-primary" disabled={!playlistName.trim()}>Create</button>
+            <form onSubmit={submitPlaylist} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Playlist Name</label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Enter playlist name..."
+                  value={playlistName}
+                  onChange={(e) => setPlaylistName(e.target.value)}
+                  className="modal-input"
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+                />
+              </div>
+              
+              {isAdmin && (
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Cover Image URLs (comma-separated)</label>
+                  <textarea
+                    placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg"
+                    value={playlistImages}
+                    onChange={(e) => setPlaylistImages(e.target.value)}
+                    className="modal-input"
+                    rows="3"
+                    style={{ width: '100%', padding: '12px', borderRadius: '8px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical' }}
+                  />
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>If multiple images are provided, they will slowly rotate over time.</p>
+                </div>
+              )}
+
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+                <button type="button" className="btn-secondary" onClick={closePlaylistPrompt} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" className="btn-primary" disabled={!playlistName.trim()} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'var(--gradient-accent)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>Create</button>
               </div>
             </form>
           </div>

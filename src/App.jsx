@@ -9,7 +9,7 @@ import MobileBottomNav from './components/MobileBottomNav';
 
 import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, getAllCachedAudioIds, saveAudioBlobToIDB } from './utils/db';
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
-import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
+import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet, getGlobalPlaylists, saveGlobalPlaylist, deleteGlobalPlaylist } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
 import { fetchSharedLibraryTracks, getStreamUrlForTrack, warmStreamCache, deleteSharedTrack } from './utils/sharedLibraryHelper';
 import { tweenVolume } from './utils/audioTween';
@@ -619,9 +619,10 @@ export default function App() {
       const username = authData.user.displayName;
 
       // 2. Fetch all cloud user data in parallel (saves ~500-1500ms vs sequential)
-      const [state, cloudPlaylists, cloudAffinities] = await Promise.all([
+      const [state, cloudPlaylists, globalPlaylists, cloudAffinities] = await Promise.all([
         getUserStateFromSheet(username),
         getAllPlaylistsFromSheet(username),
+        getGlobalPlaylists(),
         getAllAffinitiesFromSheet(username),
       ]);
 
@@ -633,11 +634,25 @@ export default function App() {
         }
       }
       
-      // Restore playlists
+      // Combine local and global playlists
+      const combinedPlaylists = [];
+      const globalIds = new Set();
+      if (globalPlaylists && globalPlaylists.length > 0) {
+        globalPlaylists.forEach(gp => {
+          combinedPlaylists.push(gp);
+          globalIds.add(gp.id);
+        });
+      }
       if (cloudPlaylists && cloudPlaylists.length > 0) {
-        setPlaylists(cloudPlaylists);
+        cloudPlaylists.forEach(lp => {
+          if (!globalIds.has(lp.id)) combinedPlaylists.push(lp);
+        });
+      }
+
+      if (combinedPlaylists.length > 0) {
+        setPlaylists(combinedPlaylists);
         // Fire-and-forget batch save — don't block login on IDB writes
-        Promise.all(cloudPlaylists.map(p => savePlaylist(p))).catch(() => {});
+        Promise.all(combinedPlaylists.map(p => savePlaylist(p))).catch(() => {});
       }
 
       // Restore affinities — batch all writes in parallel instead of sequential loop
@@ -1244,17 +1259,23 @@ export default function App() {
     }
   };
 
-  const handleCreatePlaylist = async (name) => {
+  const handleCreatePlaylist = async (name, isGlobal = false, coverImages = []) => {
     const finalName = name && name.trim() ? name.trim() : `Playlist-${playlists.length + 1}`;
     const newPlaylist = {
       id: `pl:${Date.now()}`,
       name: finalName,
       dp: null,
-      tracks: []
+      tracks: [],
+      isGlobal,
+      coverImages,
+      createdBy: userProfile?.displayName || 'admin'
     };
     const updated = [...playlists, newPlaylist];
     setPlaylists(updated);
-    if (userMode === 'local' || userMode === 'shared') {
+    
+    if (isGlobal) {
+      saveGlobalPlaylist(newPlaylist.id, newPlaylist.name, newPlaylist.tracks, newPlaylist.coverImages, newPlaylist.createdBy);
+    } else if (userMode === 'local' || userMode === 'shared') {
       await savePlaylist(newPlaylist);
       if (userMode === 'shared' && userProfile) {
         savePlaylistToSheet(userProfile.displayName, newPlaylist.id, newPlaylist.name, newPlaylist.tracks);
@@ -1266,10 +1287,11 @@ export default function App() {
     const updated = playlists.map(pl => {
       if (pl.id === playlistId) {
         const up = { ...pl, ...updates };
-        if (userMode === 'local' || userMode === 'shared') {
+        if (up.isGlobal) {
+          saveGlobalPlaylist(up.id, up.name, up.tracks, up.coverImages, up.createdBy);
+        } else if (userMode === 'local' || userMode === 'shared') {
           savePlaylist(up);
           if (userMode === 'shared' && userProfile) {
-            // Note: dp might not be synced to sheet yet, but we save it locally
             savePlaylistToSheet(userProfile.displayName, up.id, up.name, up.tracks);
           }
         }
@@ -1284,10 +1306,12 @@ export default function App() {
     const updated = playlists.map(pl => {
       if (pl.id === playlistId && !pl.tracks.includes(trackId)) {
         const up = { ...pl, tracks: [...pl.tracks, trackId] };
-        if (userMode === 'local' || userMode === 'google') {
+        if (up.isGlobal) {
+          saveGlobalPlaylist(up.id, up.name, up.tracks, up.coverImages, up.createdBy);
+        } else if (userMode === 'local' || userMode === 'shared') {
           savePlaylist(up);
-          if (userMode === 'google' && googleSheetId && userProfile) {
-            savePlaylistToSheet(googleSheetId, userProfile.sub || userProfile.email, up.id, up.name, up.tracks);
+          if (userMode === 'shared' && userProfile) {
+            savePlaylistToSheet(userProfile.displayName, up.id, up.name, up.tracks);
           }
         }
         return up;
@@ -1353,7 +1377,9 @@ export default function App() {
         if (newTrackIds.length === 0) return pl;
 
         const up = { ...pl, tracks: [...pl.tracks, ...newTrackIds] };
-        if (userMode === 'local' || userMode === 'shared') {
+        if (up.isGlobal) {
+          saveGlobalPlaylist(up.id, up.name, up.tracks, up.coverImages, up.createdBy);
+        } else if (userMode === 'local' || userMode === 'shared') {
           savePlaylist(up);
           if (userMode === 'shared' && userProfile) {
             savePlaylistToSheet(userProfile.displayName, up.id, up.name, up.tracks);
