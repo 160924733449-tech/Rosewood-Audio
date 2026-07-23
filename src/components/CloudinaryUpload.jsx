@@ -54,6 +54,23 @@ export default function CloudinaryUpload({ onUploadComplete }) {
           console.warn(`Failed to parse ID3 tags for ${file.name}`, err);
         }
         
+        // 1.5 Start Artwork Upload in Parallel (Zero extra latency!)
+        let artworkUrlPromise = Promise.resolve(null);
+        if (tags && tags.artwork) {
+          const artFormData = new FormData();
+          artFormData.append('file', tags.artwork); // base64 data URI
+          artFormData.append('upload_preset', uploadPreset);
+          artworkUrlPromise = fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST',
+            body: artFormData
+          }).then(res => res.ok ? res.json() : null)
+            .then(data => data ? data.secure_url : null)
+            .catch(err => {
+              console.warn('Artwork upload failed:', err);
+              return null;
+            });
+        }
+        
         // 2. Upload to Cloudinary using Chunked Upload (Bypasses 10MB limit)
         const CHUNK_SIZE = 10000000; // 10MB chunks
         const uniqueUploadId = Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -92,6 +109,9 @@ export default function CloudinaryUpload({ onUploadComplete }) {
           }
         }
         
+        // Wait for artwork to finish (usually finishes long before audio)
+        const finalArtworkUrl = await artworkUrlPromise;
+        
         // 3. Save to Firestore
         const trackId = `cloudinary:${cloudData.public_id.replace(/\//g, '_')}`;
         
@@ -107,6 +127,7 @@ export default function CloudinaryUpload({ onUploadComplete }) {
           mime: file.type || 'audio/mpeg',
           source: 'cloudinary',
           url: secureUrl, // Direct streaming URL
+          artwork: finalArtworkUrl,
         };
         
         const trackRef = doc(db, 'libraryMetadata', trackId);
