@@ -252,6 +252,105 @@ export default function MainView({
       );
     }
 
+    if (isAdmin) {
+      return (
+        <table className="track-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th className="track-number-cell" style={isSelectionMode ? { padding: '0 16px' } : {}}>
+                {isSelectionMode ? (
+                  <input 
+                    type="checkbox" 
+                    checked={selectedTrackIds.size === trackList.length && trackList.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedTrackIds(new Set(trackList.map(tr => tr.id)));
+                      else setSelectedTrackIds(new Set());
+                    }}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--accent-coral)' }}
+                  />
+                ) : '#'}
+              </th>
+              <th>Name</th>
+              <th>Data</th>
+              <th className="track-duration-cell"><Clock size={14} /></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {trackList.map((t, index) => {
+              const isActive = currentTrack && currentTrack.id === t.id;
+              const isSelected = selectedTrackIds.has(t.id);
+              return (
+                <tr 
+                  key={t.id}
+                  className={`track-row ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
+                  style={isSelectionMode ? { cursor: 'pointer', background: isSelected ? 'var(--bg-surface-hover)' : 'transparent' } : {}}
+                  onClick={() => {
+                    if (isSelectionMode) {
+                      const newSet = new Set(selectedTrackIds);
+                      if (newSet.has(t.id)) newSet.delete(t.id);
+                      else newSet.add(t.id);
+                      setSelectedTrackIds(newSet);
+                    } else {
+                      onPlayTrack(t, trackList);
+                    }
+                  }}
+                >
+                  <td className="track-number-cell" style={isSelectionMode ? { padding: '0 16px' } : {}}>
+                    {isSelectionMode ? (
+                      <input 
+                        type="checkbox" 
+                        checked={isSelected}
+                        readOnly
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--accent-coral)', pointerEvents: 'none' }}
+                      />
+                    ) : (isActive ? <Disc size={14} className="spin" /> : index + 1)}
+                  </td>
+                  <td>
+                    <div className="track-title-cell">
+                      <div style={{ position: 'relative' }}>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setPreviewImageId(previewImageId === t.id ? null : t.id); }}
+                          style={{ background: 'transparent', border: 'none', color: t.artwork ? '#000' : 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                        >
+                          <Image size={16} />
+                        </button>
+                        {previewImageId === t.id && t.artwork && (
+                          <div className="admin-artwork-preview" onClick={(e) => e.stopPropagation()}>
+                            <img src={t.artwork} alt="Preview" />
+                            <button onClick={() => setPreviewImageId(null)} style={{ background: '#000', color: '#fff', border: 'none', fontWeight: 'bold', fontSize: '10px', padding: '2px', cursor: 'pointer' }}>CLOSE</button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="track-title-details">
+                        <span className="track-table-title" style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{t.title || 'Untitled'}</span>
+                        <span className="track-table-artist" style={{ fontFamily: 'monospace', fontSize: '11px' }}>{t.artist || 'Unknown Artist'}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="track-album-cell" style={{ fontFamily: 'monospace', fontSize: '11px', lineHeight: '1.4' }}>
+                    <div style={{ color: t.genre ? '#000' : 'red' }}>GENRE: {t.genre || 'NONE'}</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>SRC: {t.source || 'local'}</div>
+                  </td>
+                  <td className="track-duration-cell" style={{ fontFamily: 'monospace' }}>{formatDuration(t.duration)}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="mobile-context-btn"
+                      onClick={(e) => { e.stopPropagation(); onDeleteTrack(t.id); }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--accent-coral)', padding: '8px', cursor: 'pointer' }}
+                      title="Delete Track"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      );
+    }
+
     return (
       <TableVirtuoso
         data={trackList}
