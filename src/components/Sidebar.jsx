@@ -241,14 +241,18 @@ export default function Sidebar({
                 <div>
                   <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Cover Images</label>
                   
-                  {/* File Upload */}
-                  <input 
-                    type="file" 
-                    multiple 
-                    accept="image/*" 
-                    onChange={(e) => setPlaylistImageFiles(Array.from(e.target.files))}
-                    style={{ marginBottom: '8px', display: 'block', width: '100%', padding: '8px', background: 'var(--bg-deep)', borderRadius: '8px', color: 'var(--text-secondary)' }}
-                  />
+                  {/* File Upload UI */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'var(--bg-deep)', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', marginBottom: '12px', width: 'fit-content', transition: 'all 0.2s' }}>
+                    <Camera size={16} />
+                    <span style={{ fontSize: '13px' }}>{playlistImageFiles.length > 0 ? `${playlistImageFiles.length} file(s) selected` : 'Upload Images'}</span>
+                    <input 
+                      type="file" 
+                      multiple 
+                      accept="image/*" 
+                      onChange={(e) => setPlaylistImageFiles(Array.from(e.target.files))}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
 
                   {/* Fallback Textarea for URLs */}
                   <textarea
