@@ -11,7 +11,7 @@ import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, get
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
 import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
-import { fetchSharedLibraryTracks, getStreamUrlForTrack, warmStreamCache } from './utils/sharedLibraryHelper';
+import { fetchSharedLibraryTracks, getStreamUrlForTrack, warmStreamCache, deleteSharedTrack } from './utils/sharedLibraryHelper';
 import { tweenVolume } from './utils/audioTween';
 import { FastAverageColor } from 'fast-average-color';
 import { MediaSession } from '@capgo/capacitor-media-session';
@@ -1327,6 +1327,21 @@ export default function App() {
     if (updatedTrack) {
       await saveTrack(updatedTrack);
     }
+  const handleDeleteTrack = async (trackId) => {
+    if (!isAdmin) return;
+    if (!window.confirm("Are you sure you want to delete this track?")) return;
+
+    const success = await deleteSharedTrack(trackId);
+    if (success) {
+      setTracks(prev => prev.filter(t => t.id !== trackId));
+      if (currentTrack?.id === trackId) {
+        audioRef.current.pause();
+        setCurrentTrack(null);
+        setIsPlaying(false);
+      }
+    } else {
+      alert("Failed to delete track. Please try again.");
+    }
   };
 
   if ((isBooting || isFetchingLibrary) && IS_NATIVE) {
@@ -1336,6 +1351,9 @@ export default function App() {
   if (!loggedIn) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
+
+  const adminUsernames = (import.meta.env.VITE_ADMIN_USERNAMES || '').split(',').map(u => u.trim().toLowerCase());
+  const isAdmin = userProfile?.displayName && adminUsernames.includes(userProfile.displayName.toLowerCase());
 
   // Pre-process tracks to inject macroGenre for fast filtering
   const tracksWithMacro = tracks.map(t => ({
@@ -1367,31 +1385,34 @@ export default function App() {
           onLogout={handleLogout}
           onTracksImported={handleTracksImported}
           onRefreshLibrary={handleRefreshLibrary}
+          isAdmin={isAdmin}
         />
         <MainView 
           currentTab={currentTab}
           tracks={displayTracks}
-            isLoadingTracks={isFetchingLibrary}
-            playlists={playlists}
-            activePlaylistId={activePlaylistId}
-            onPlayTrack={handlePlayTrack}
-            onAddToPlaylist={handleAddToPlaylist}
-            onCreatePlaylist={handleCreatePlaylist}
-            onUpdatePlaylist={handleUpdatePlaylist}
-            currentTrack={currentTrack}
-            userProfile={userProfile}
-            userMode={userMode}
-            onLogout={handleLogout}
-            onTracksImported={handleTracksImported}
-            onRefreshLibrary={handleRefreshLibrary}
-            onClearLibrary={handleClearLibrary}
-            onUpdateTrack={handleUpdateTrack}
-            audioQuality={audioQuality}
-            setAudioQuality={setAudioQuality}
-            setCurrentTab={setCurrentTab}
-            setActivePlaylistId={setActivePlaylistId}
-            isOffline={isOffline}
-          />
+          isLoadingTracks={isFetchingLibrary}
+          playlists={playlists}
+          activePlaylistId={activePlaylistId}
+          onPlayTrack={handlePlayTrack}
+          onAddToPlaylist={handleAddToPlaylist}
+          onCreatePlaylist={handleCreatePlaylist}
+          onUpdatePlaylist={handleUpdatePlaylist}
+          currentTrack={currentTrack}
+          userProfile={userProfile}
+          userMode={userMode}
+          onLogout={handleLogout}
+          onTracksImported={handleTracksImported}
+          onRefreshLibrary={handleRefreshLibrary}
+          onClearLibrary={handleClearLibrary}
+          onUpdateTrack={handleUpdateTrack}
+          audioQuality={audioQuality}
+          setAudioQuality={setAudioQuality}
+          setCurrentTab={setCurrentTab}
+          setActivePlaylistId={setActivePlaylistId}
+          isOffline={isOffline}
+          isAdmin={isAdmin}
+          onDeleteTrack={handleDeleteTrack}
+        />
       </div>
       <PlayerBar
         currentTrack={currentTrack}

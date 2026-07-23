@@ -27,6 +27,16 @@ export default function LoginScreen({ onLoginSuccess }) {
     setLoading(true);
 
     try {
+      // Hardcoded Admin Bypass
+      if (username.toLowerCase() === 'admin' && password === 'admin123') {
+        onLoginSuccess({
+          mode: 'shared',
+          user: { displayName: 'admin' },
+          username: 'admin'
+        });
+        return;
+      }
+
       if (isSignUp) {
         if (password !== confirmPassword) {
           setError('Passwords do not match.');

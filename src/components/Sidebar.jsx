@@ -14,7 +14,8 @@ export default function Sidebar({
   userProfile,
   onLogout,
   onTracksImported,
-  onRefreshLibrary
+  onRefreshLibrary,
+  isAdmin
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -67,8 +68,6 @@ export default function Sidebar({
   const isNative = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
 
   const adminUsernames = (import.meta.env.VITE_ADMIN_USERNAMES || '').split(',').map(u => u.trim().toLowerCase());
-  const isAdmin = userProfile?.displayName && adminUsernames.includes(userProfile.displayName.toLowerCase());
-
   return (
     <>
     <aside className="sidebar glass">
@@ -144,7 +143,7 @@ export default function Sidebar({
 
       {userMode === 'shared' && (
         <div className="local-import-section" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <CloudinaryUpload onUploadComplete={onRefreshLibrary} />
+          {isAdmin && <CloudinaryUpload onUploadComplete={onRefreshLibrary} />}
           <button className="menu-item" onClick={async () => {
             try {
               setLoading(true);

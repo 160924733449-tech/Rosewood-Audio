@@ -30,7 +30,9 @@ export default function MainView({
   onUpdateTrack,
   audioQuality,
   setAudioQuality,
-  isOffline
+  isOffline,
+  isAdmin,
+  onDeleteTrack
 }) {
   const [recommendations, setRecommendations] = useState({ dailyMix: [], similarTracks: [], forgottenGems: [] });
   const [topMatches, setTopMatches] = useState([]);
@@ -206,7 +208,8 @@ export default function MainView({
                   { label: 'Assign to Space...', icon: <Settings size={14} />, action: (track) => {
                     const newSpace = window.prompt('Assign this track to a Space (e.g., Bollywood, Chill, Pop):', track.genre);
                     if (newSpace) onUpdateTrack(track.id, { genre: newSpace });
-                  }}
+                  }},
+                  ...(isAdmin ? [{ label: 'Delete Track', icon: <Trash2 size={14} color="var(--accent-coral)" />, action: (track) => onDeleteTrack(track.id) }] : [])
                 ], t)}
               />
             );
@@ -321,6 +324,16 @@ export default function MainView({
                       </div>
                     )}
                   </div>
+                  {isAdmin && (
+                    <button
+                      className="mobile-context-btn"
+                      onClick={(e) => { e.stopPropagation(); onDeleteTrack(t.id); }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--accent-coral)', padding: '8px', cursor: 'pointer' }}
+                      title="Delete Track"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                   <button
                     className="mobile-context-btn"
                     onClick={(e) => openMenu(e, [
@@ -329,7 +342,8 @@ export default function MainView({
                       { label: 'Assign to Space...', icon: <Settings size={14} />, action: (track) => {
                         const newSpace = window.prompt('Assign this track to a Space (e.g., Bollywood, Chill, Pop):', track.genre);
                         if (newSpace) onUpdateTrack(track.id, { genre: newSpace });
-                      }}
+                      }},
+                      ...(isAdmin ? [{ label: 'Delete Track', icon: <Trash2 size={14} color="var(--accent-coral)" />, action: (track) => onDeleteTrack(track.id) }] : [])
                     ], t)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', padding: '8px' }}
                   >

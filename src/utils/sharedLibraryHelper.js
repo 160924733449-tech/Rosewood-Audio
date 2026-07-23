@@ -109,6 +109,20 @@ export async function fetchSharedLibraryTracks() {
 }
 
 /**
+ * Deletes a track from the shared library metadata.
+ */
+export async function deleteSharedTrack(trackId) {
+  try {
+    await deleteDoc(doc(db, 'libraryMetadata', trackId));
+    console.log(`[Library] Deleted track ${trackId}`);
+    return true;
+  } catch (error) {
+    console.error(`Error deleting track ${trackId}:`, error);
+    return false;
+  }
+}
+
+/**
  * Gets a blob URL for a given track, checking Local IDB first for offline playback.
  * If not in IDB, it returns the direct Cloudinary URL.
  *
