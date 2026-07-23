@@ -309,7 +309,7 @@ export default function MainView({
               ) : '#'}
             </th>
             <th>Title</th>
-            <th>Album</th>
+            <th>{isAdmin ? 'Data' : 'Album'}</th>
             <th className="track-duration-cell"><Clock size={14} /></th>
             <th></th>
           </tr>
@@ -331,21 +331,30 @@ export default function MainView({
                 </td>
                 <td>
                   <div className="track-title-cell">
-                    {t.artwork ? (
-                      <img src={t.artwork} alt="" className="track-table-art" loading="lazy" decoding="async" />
-                    ) : (
-                      <div className="track-table-placeholder-art">
-                        <Music size={14} />
-                      </div>
+                    {!isAdmin && (
+                      t.artwork ? (
+                        <img src={t.artwork} alt="" className="track-table-art" loading="lazy" decoding="async" />
+                      ) : (
+                        <div className="track-table-placeholder-art">
+                          <Music size={14} />
+                        </div>
+                      )
                     )}
                     <div className="track-title-details">
-                      <span className="track-table-title">{t.title}</span>
-                      <span className="track-table-artist">{t.artist}</span>
+                      <span className="track-table-title" style={isAdmin ? { fontFamily: 'monospace', fontWeight: 'bold' } : {}}>{t.title || 'Untitled'}</span>
+                      <span className="track-table-artist" style={isAdmin ? { fontFamily: 'monospace', fontSize: '11px' } : {}}>{t.artist || 'Unknown Artist'}</span>
                     </div>
                   </div>
                 </td>
-                <td className="track-album-cell">{t.album}</td>
-                <td className="track-duration-cell">{formatDuration(t.duration)}</td>
+                {isAdmin ? (
+                  <td className="track-album-cell" style={{ fontFamily: 'monospace', fontSize: '11px', lineHeight: '1.4' }}>
+                    <div style={{ color: t.genre ? '#000' : 'red' }}>GENRE: {t.genre || 'NONE'}</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>SRC: {t.source || 'local'}</div>
+                  </td>
+                ) : (
+                  <td className="track-album-cell">{t.album}</td>
+                )}
+                <td className="track-duration-cell" style={isAdmin ? { fontFamily: 'monospace' } : {}}>{formatDuration(t.duration)}</td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div className="desktop-only-playlist-btn" style={{ position: 'relative', display: 'inline-block' }}>
