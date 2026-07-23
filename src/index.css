@@ -2314,6 +2314,7 @@ body {
   /* Floating Mini Player (PlayerBar overriding for mobile) */
   .player-bar {
     position: fixed;
+    bottom: 74px; /* Fallback for browsers that don't support env() */
     bottom: calc(74px + env(safe-area-inset-bottom, 0px)); /* Just above bottom nav */
     left: 10px;
     width: calc(100% - 20px);
