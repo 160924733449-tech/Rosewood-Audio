@@ -2314,7 +2314,7 @@ body {
   /* Floating Mini Player (PlayerBar overriding for mobile) */
   .player-bar {
     position: fixed;
-    bottom: 74px; /* Just above bottom nav */
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px)); /* Just above bottom nav */
     left: 10px;
     width: calc(100% - 20px);
     height: 60px;
@@ -2335,20 +2335,17 @@ body {
     display: none;
   }
 
-  .player-bar .player-left {
+  .player-bar .player-track-info {
     width: auto;
     flex: 1;
     overflow: hidden;
+    max-width: 60%;
   }
 
-  .player-bar .player-artwork {
+  .player-bar .player-art {
     width: 40px;
     height: 40px;
     border-radius: 50%; /* Make it circular like a small vinyl */
-  }
-
-  .player-bar .player-track-info {
-    max-width: 60%;
   }
 
   .player-bar .player-controls-container,
