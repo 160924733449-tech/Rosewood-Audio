@@ -1327,6 +1327,8 @@ export default function App() {
     if (updatedTrack) {
       await saveTrack(updatedTrack);
     }
+  };
+
   const handleDeleteTrack = async (trackId) => {
     if (!isAdmin) return;
     if (!window.confirm("Are you sure you want to delete this track?")) return;
