@@ -6,7 +6,9 @@ import { doc, setDoc } from 'firebase/firestore';
 
 export default function CloudinaryUpload({ onUploadComplete }) {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [chunkProgress, setChunkProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState(''); // '', 'success', 'error'
   const [statusMessage, setStatusMessage] = useState('');
   
@@ -34,13 +36,17 @@ export default function CloudinaryUpload({ onUploadComplete }) {
     setIsUploading(true);
     setUploadStatus('');
     setStatusMessage('');
+    setTotalFiles(files.length);
+    setCurrentFileIndex(0);
+    setChunkProgress(0);
     
     let successCount = 0;
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      setUploadProgress(Math.round((i / files.length) * 100));
-      setStatusMessage(`Uploading ${file.name}...`);
+      setCurrentFileIndex(i + 1);
+      setChunkProgress(0);
+      setStatusMessage(`[UPLOADING] ${file.name}`);
       
       try {
         // 1. Parse Metadata
@@ -102,6 +108,8 @@ export default function CloudinaryUpload({ onUploadComplete }) {
             throw new Error(`Cloudinary upload failed at chunk ${currentChunk + 1}`);
           }
           
+          setChunkProgress(Math.round(((currentChunk + 1) / totalChunks) * 100));
+          
           const result = await uploadResponse.json();
           if (currentChunk === totalChunks - 1) {
             cloudData = result;
@@ -140,7 +148,6 @@ export default function CloudinaryUpload({ onUploadComplete }) {
       }
     }
     
-    setUploadProgress(100);
     setIsUploading(false);
     
     if (successCount === files.length) {
@@ -175,30 +182,40 @@ export default function CloudinaryUpload({ onUploadComplete }) {
         onClick={triggerSelect} 
         disabled={isUploading}
         style={{ 
-          background: 'rgba(213, 28, 57, 0.05)', 
-          color: 'var(--accent-deep)', 
-          border: '1px dashed var(--accent-rose)' 
+          background: isUploading ? '#ccc' : '#000', 
+          color: isUploading ? '#000' : '#fff', 
+          border: '2px solid #000',
+          fontFamily: 'monospace',
+          fontWeight: 'bold',
+          borderRadius: 0,
+          textTransform: 'uppercase',
+          justifyContent: 'center',
+          cursor: isUploading ? 'not-allowed' : 'pointer'
         }}
       >
-        {isUploading ? (
-          <UploadCloud size={18} className="pulse" />
-        ) : (
-          <UploadCloud size={18} />
-        )}
-        <span>{isUploading ? 'Uploading...' : 'Upload to Cloud'}</span>
+        <span>{isUploading ? 'SYS.UPLOADING...' : 'INITIATE UPLOAD'}</span>
       </button>
       
       {isUploading && (
-        <div className="upload-progress-bar" style={{ marginTop: '8px', background: 'rgba(255,255,255,0.1)', height: '4px', borderRadius: '2px', overflow: 'hidden' }}>
-          <div style={{ width: `${uploadProgress}%`, background: 'var(--accent-rose)', height: '100%', transition: 'width 0.3s' }}></div>
+        <div style={{ marginTop: '8px', border: '2px solid #000', background: '#fff', padding: '8px', fontFamily: 'monospace', color: '#000' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+            FILE {currentFileIndex} OF {totalFiles}
+          </div>
+          <div style={{ fontSize: '11px', wordBreak: 'break-all', marginBottom: '8px' }}>
+            {statusMessage}
+          </div>
+          <div style={{ width: '100%', background: '#ccc', border: '1px solid #000', height: '12px', position: 'relative' }}>
+            <div style={{ width: `${chunkProgress}%`, background: '#000', height: '100%', transition: 'width 0.1s' }}></div>
+            <div style={{ position: 'absolute', top: '-1px', left: 0, width: '100%', textAlign: 'center', fontSize: '9px', color: chunkProgress > 50 ? '#fff' : '#000', fontWeight: 'bold' }}>
+              {chunkProgress}%
+            </div>
+          </div>
         </div>
       )}
       
-      {statusMessage && (
-        <div className={`upload-status ${uploadStatus}`} style={{ marginTop: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: uploadStatus === 'error' ? '#ff4a4a' : 'var(--text-secondary)' }}>
-          {uploadStatus === 'success' && <CheckCircle size={14} color="var(--accent-coral)" />}
-          {uploadStatus === 'error' && <AlertCircle size={14} color="#ff4a4a" />}
-          <span>{statusMessage}</span>
+      {!isUploading && statusMessage && (
+        <div style={{ marginTop: '8px', padding: '8px', border: '2px dashed #000', fontFamily: 'monospace', fontSize: '11px', background: uploadStatus === 'error' ? 'red' : '#fff', color: uploadStatus === 'error' ? '#fff' : '#000', fontWeight: 'bold' }}>
+          {statusMessage}
         </div>
       )}
     </div>

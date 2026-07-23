@@ -32,7 +32,9 @@ export default function MainView({
   setAudioQuality,
   isOffline,
   isAdmin,
-  onDeleteTrack
+  onDeleteTrack,
+  onBulkAddToPlaylist,
+  onBulkDeleteTracks
 }) {
   const [recommendations, setRecommendations] = useState({ dailyMix: [], similarTracks: [], forgottenGems: [] });
   const [topMatches, setTopMatches] = useState([]);
@@ -43,7 +45,35 @@ export default function MainView({
   const [editPlaylistName, setEditPlaylistName] = useState('');
   const [syncingOffline, setSyncingOffline] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
+
+  // Admin Mass Selection State
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedTrackIds, setSelectedTrackIds] = useState(new Set());
+  const [showBulkPlaylistPicker, setShowBulkPlaylistPicker] = useState(false);
+
   const { openMenu } = useContextMenu();
+
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedTrackIds(new Set());
+    setShowBulkPlaylistPicker(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTrackIds.size === 0) return;
+    await onBulkDeleteTracks(Array.from(selectedTrackIds));
+    setSelectedTrackIds(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const handleBulkAdd = async (playlistId) => {
+    if (selectedTrackIds.size === 0) return;
+    await onBulkAddToPlaylist(playlistId, Array.from(selectedTrackIds));
+    setSelectedTrackIds(new Set());
+    setIsSelectionMode(false);
+    setShowBulkPlaylistPicker(false);
+    alert('Tracks added successfully!');
+  };
 
   const handleOfflineSync = async () => {
     if (syncingOffline || isOffline) return;
@@ -196,12 +226,22 @@ export default function MainView({
           TableRow: (props) => {
             const t = props.item;
             const index = props['data-index'];
-            const isActive = currentTrack && currentTrack.id === t.id;
+            const isSelected = selectedTrackIds.has(t.id);
             return (
               <tr 
                 {...props}
-                className={`track-row ${isActive ? 'active' : ''}`}
-                onClick={() => onPlayTrack(t, trackList)}
+                className={`track-row ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
+                style={isSelectionMode ? { cursor: 'pointer', background: isSelected ? 'var(--bg-surface-hover)' : 'transparent' } : {}}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    const newSet = new Set(selectedTrackIds);
+                    if (newSet.has(t.id)) newSet.delete(t.id);
+                    else newSet.add(t.id);
+                    setSelectedTrackIds(newSet);
+                  } else {
+                    onPlayTrack(t, trackList);
+                  }
+                }}
                 onContextMenu={(e) => openMenu(e, [
                   { label: 'Play Now', icon: <Play size={14} />, action: (track) => onPlayTrack(track, trackList) },
                   { label: 'Add to Playlist', icon: <FolderPlus size={14} />, action: (track) => setOpenDropdownId(openDropdownId === track.id ? null : track.id) },
@@ -217,7 +257,19 @@ export default function MainView({
         }}
         fixedHeaderContent={() => (
           <tr>
-            <th className="track-number-cell">#</th>
+            <th className="track-number-cell" style={isSelectionMode ? { padding: '0 16px' } : {}}>
+              {isSelectionMode ? (
+                <input 
+                  type="checkbox" 
+                  checked={selectedTrackIds.size === trackList.length && trackList.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedTrackIds(new Set(trackList.map(tr => tr.id)));
+                    else setSelectedTrackIds(new Set());
+                  }}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--accent-coral)' }}
+                />
+              ) : '#'}
+            </th>
             <th>Title</th>
             <th>Album</th>
             <th className="track-duration-cell"><Clock size={14} /></th>
@@ -226,10 +278,18 @@ export default function MainView({
         )}
         itemContent={(index, t) => {
           const isActive = currentTrack && currentTrack.id === t.id;
+          const isSelected = selectedTrackIds.has(t.id);
           return (
             <>
-                <td className="track-number-cell">
-                  {isActive ? <Disc size={14} className="spin" /> : index + 1}
+                <td className="track-number-cell" style={isSelectionMode ? { padding: '0 16px' } : {}}>
+                  {isSelectionMode ? (
+                    <input 
+                      type="checkbox" 
+                      checked={isSelected}
+                      readOnly
+                      style={{ width: '16px', height: '16px', accentColor: 'var(--accent-coral)', pointerEvents: 'none' }}
+                    />
+                  ) : (isActive ? <Disc size={14} className="spin" /> : index + 1)}
                 </td>
                 <td>
                   <div className="track-title-cell">
@@ -449,6 +509,24 @@ export default function MainView({
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
               <h2>Your Collection</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {isAdmin && tracks.length > 0 && (
+                  <button
+                    onClick={toggleSelectionMode}
+                    style={{
+                      background: isSelectionMode ? '#000' : '#fff',
+                      color: isSelectionMode ? '#fff' : '#000',
+                      border: '2px solid #000',
+                      padding: '4px 8px',
+                      fontFamily: 'monospace',
+                      fontWeight: 'bold',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      borderRadius: '0'
+                    }}
+                  >
+                    {isSelectionMode ? '[X] CANCEL SELECT' : '[ ] MASS SELECT'}
+                  </button>
+                )}
                 {userMode === 'shared' && !isOffline && tracks.length > 0 && (
                   <button 
                     onClick={handleOfflineSync}
@@ -475,6 +553,36 @@ export default function MainView({
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tracks.length} Songs Loaded</span>
               </div>
             </div>
+            {isSelectionMode && (
+              <div style={{
+                width: '100%',
+                background: '#ccc',
+                border: '2px solid #000',
+                padding: '8px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontFamily: 'monospace',
+                color: '#000'
+              }}>
+                <div>SELECTED: {selectedTrackIds.size}</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setSelectedTrackIds(new Set(tracks.map(t => t.id)))} style={{ border: '2px solid #000', background: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>SELECT ALL</button>
+                  <button onClick={() => setSelectedTrackIds(new Set())} style={{ border: '2px solid #000', background: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>DESELECT</button>
+                  <div style={{ position: 'relative' }}>
+                    <button onClick={() => setShowBulkPlaylistPicker(!showBulkPlaylistPicker)} style={{ border: '2px solid #000', background: '#000', color: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>ADD TO PLAYLIST</button>
+                    {showBulkPlaylistPicker && (
+                      <div style={{ position: 'absolute', top: '100%', right: 0, background: '#fff', border: '2px solid #000', padding: '4px', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
+                        {playlists.map(pl => (
+                          <div key={pl.id} onClick={() => handleBulkAdd(pl.id)} style={{ padding: '4px 8px', cursor: 'pointer', borderBottom: '1px solid #ccc' }}>{pl.name}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={handleBulkDelete} style={{ border: '2px solid #000', background: 'red', color: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>DELETE</button>
+                </div>
+              </div>
+            )}
             {tracks.length > 0 && (
               <button 
                 onClick={() => {

@@ -1346,6 +1346,45 @@ export default function App() {
     }
   };
 
+  const handleBulkAddToPlaylist = async (playlistId, trackIdsToAdd) => {
+    const updated = playlists.map(pl => {
+      if (pl.id === playlistId) {
+        const newTrackIds = trackIdsToAdd.filter(id => !pl.tracks.includes(id));
+        if (newTrackIds.length === 0) return pl;
+
+        const up = { ...pl, tracks: [...pl.tracks, ...newTrackIds] };
+        if (userMode === 'local' || userMode === 'shared') {
+          savePlaylist(up);
+          if (userMode === 'shared' && userProfile) {
+            savePlaylistToSheet(userProfile.displayName, up.id, up.name, up.tracks);
+          }
+        }
+        return up;
+      }
+      return pl;
+    });
+    setPlaylists(updated);
+  };
+
+  const handleBulkDeleteTracks = async (trackIdsToDelete) => {
+    if (!isAdmin) return;
+    if (!window.confirm(`Are you sure you want to completely DELETE ${trackIdsToDelete.length} tracks?`)) return;
+
+    const successfulDeletes = new Set();
+    for (const id of trackIdsToDelete) {
+      if (await deleteSharedTrack(id)) successfulDeletes.add(id);
+    }
+    
+    if (successfulDeletes.size > 0) {
+      setTracks(prev => prev.filter(t => !successfulDeletes.has(t.id)));
+      if (currentTrack && successfulDeletes.has(currentTrack.id)) {
+        audioRef.current.pause();
+        setCurrentTrack(null);
+        setIsPlaying(false);
+      }
+    }
+  };
+
   if ((isBooting || isFetchingLibrary) && IS_NATIVE) {
     return <SplashScreen />;
   }
@@ -1414,6 +1453,8 @@ export default function App() {
           isOffline={isOffline}
           isAdmin={isAdmin}
           onDeleteTrack={handleDeleteTrack}
+          onBulkAddToPlaylist={handleBulkAddToPlaylist}
+          onBulkDeleteTracks={handleBulkDeleteTracks}
         />
       </div>
       <PlayerBar
