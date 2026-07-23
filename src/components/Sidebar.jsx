@@ -144,9 +144,7 @@ export default function Sidebar({
 
       {userMode === 'shared' && (
         <div className="local-import-section" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {isAdmin && (
-            <CloudinaryUpload onUploadComplete={onRefreshLibrary} />
-          )}
+          <CloudinaryUpload onUploadComplete={onRefreshLibrary} />
           <button className="menu-item" onClick={async () => {
             try {
               setLoading(true);
