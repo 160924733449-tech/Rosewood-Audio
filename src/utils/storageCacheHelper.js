@@ -50,7 +50,7 @@ export async function getAudioFromCache(trackId) {
 /**
  * Uploads a file to Cloudinary.
  */
-async function uploadToCloudinary(fileBlob, resourceType) {
+export async function uploadToCloudinary(fileBlob, resourceType) {
   const formData = new FormData();
   formData.append('file', fileBlob);
   formData.append('upload_preset', UPLOAD_PRESET);

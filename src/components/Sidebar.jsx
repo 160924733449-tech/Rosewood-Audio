@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic, Download, Settings } from 'lucide-react';
 import { scanDirectory, triggerFileSelect } from '../utils/fileSystemHelper';
 import CloudinaryUpload from './CloudinaryUpload';
+import { uploadToCloudinary } from '../utils/storageCacheHelper';
 
 export default function Sidebar({
   currentTab,
@@ -46,25 +47,43 @@ export default function Sidebar({
   const [showPlaylistPrompt, setShowPlaylistPrompt] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
   const [playlistImages, setPlaylistImages] = useState('');
+  const [playlistImageFiles, setPlaylistImageFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   const triggerAddPlaylist = () => {
     setPlaylistName('');
     setPlaylistImages('');
+    setPlaylistImageFiles([]);
     setShowPlaylistPrompt(true);
   };
 
-  const submitPlaylist = (e) => {
+  const submitPlaylist = async (e) => {
     e.preventDefault();
     if (playlistName && playlistName.trim()) {
-      const coverImages = playlistImages
+      setIsUploading(true);
+      
+      let coverImages = playlistImages
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+
+      // Upload local files to Cloudinary if any
+      if (playlistImageFiles.length > 0) {
+        for (let i = 0; i < playlistImageFiles.length; i++) {
+          try {
+            const url = await uploadToCloudinary(playlistImageFiles[i], 'image');
+            coverImages.push(url);
+          } catch (err) {
+            console.error('Failed to upload playlist image:', err);
+          }
+        }
+      }
       
       // If admin creates a playlist, make it global
       onCreatePlaylist(playlistName.trim(), isAdmin, coverImages);
+      setIsUploading(false);
+      setShowPlaylistPrompt(false);
     }
-    setShowPlaylistPrompt(false);
   };
 
   const closePlaylistPrompt = () => {
@@ -220,13 +239,24 @@ export default function Sidebar({
               
               {isAdmin && (
                 <div>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Cover Image URLs (comma-separated)</label>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Cover Images</label>
+                  
+                  {/* File Upload */}
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept="image/*" 
+                    onChange={(e) => setPlaylistImageFiles(Array.from(e.target.files))}
+                    style={{ marginBottom: '8px', display: 'block', width: '100%', padding: '8px', background: 'var(--bg-deep)', borderRadius: '8px', color: 'var(--text-secondary)' }}
+                  />
+
+                  {/* Fallback Textarea for URLs */}
                   <textarea
-                    placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg"
+                    placeholder="Or paste URLs here (comma-separated)..."
                     value={playlistImages}
                     onChange={(e) => setPlaylistImages(e.target.value)}
                     className="modal-input"
-                    rows="3"
+                    rows="2"
                     style={{ width: '100%', padding: '12px', borderRadius: '8px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical' }}
                   />
                   <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>If multiple images are provided, they will slowly rotate over time.</p>
@@ -234,8 +264,10 @@ export default function Sidebar({
               )}
 
               <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
-                <button type="button" className="btn-secondary" onClick={closePlaylistPrompt} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" className="btn-primary" disabled={!playlistName.trim()} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'var(--gradient-accent)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>Create</button>
+                <button type="button" className="btn-secondary" onClick={closePlaylistPrompt} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }} disabled={isUploading}>Cancel</button>
+                <button type="submit" className="btn-primary" disabled={!playlistName.trim() || isUploading} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'var(--gradient-accent)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+                  {isUploading ? 'Uploading...' : 'Create'}
+                </button>
               </div>
             </form>
           </div>
