@@ -1187,8 +1187,8 @@ export default function MainView({
               <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px' }}>
                 <h3 style={{ marginBottom: '16px', fontSize: '16px', color: 'var(--text-primary)' }}>Mobile App</h3>
                 <a 
-                  href="/reson8.apk" 
-                  download
+                  href="https://github.com/160924733449-tech/Rosewood-Audio/raw/main/public/reson8.apk" 
+                  download="reson8.apk"
                   className="option-btn hover-scale" 
                   style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--gradient-accent)', borderRadius: '12px', cursor: 'pointer', color: '#fff', textDecoration: 'none', fontWeight: 'bold' }}
                 >

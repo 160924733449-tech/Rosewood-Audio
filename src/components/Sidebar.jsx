@@ -181,8 +181,8 @@ export default function Sidebar({
 
         {!isNative && (
           <a
-            href="/reson8.apk"
-            download
+            href="https://github.com/160924733449-tech/Rosewood-Audio/raw/main/public/reson8.apk"
+            download="reson8.apk"
             className="menu-item"
             style={{ textDecoration: 'none', color: 'var(--accent-coral)' }}
           >
