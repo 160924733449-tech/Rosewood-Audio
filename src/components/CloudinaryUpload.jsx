@@ -41,6 +41,13 @@ export default function CloudinaryUpload({ onUploadComplete }) {
     setChunkProgress(0);
     
     let successCount = 0;
+
+    const normalizeStr = (str) => {
+      if (!str) return '';
+      let cleaned = str.replace(/^[0-9\s.\-_]+/, '');
+      if (!cleaned) cleaned = str;
+      return cleaned.toLowerCase().replace(/[^a-z0-9]/g, '');
+    };
     
     // Fetch existing library to prevent duplicates
     let existingFiles = new Map();
@@ -50,6 +57,10 @@ export default function CloudinaryUpload({ onUploadComplete }) {
         const data = d.data();
         if (data.name && data.size) {
           existingFiles.set(`${data.name}_${data.size}`, true);
+        }
+        if (data.title && data.artist && data.title !== 'Unknown Title' && data.artist !== 'Unknown Artist') {
+          const fp = `${normalizeStr(data.title)}_${normalizeStr(data.artist)}`;
+          if (fp.length > 3) existingFiles.set(fp, true);
         }
       });
     } catch (err) {
@@ -62,8 +73,24 @@ export default function CloudinaryUpload({ onUploadComplete }) {
       setChunkProgress(0);
       setChunkProgress(0);
       
+      // 1. Parse Metadata first to build smart fingerprint
+      let tags = { title: file.name.replace(/\.[^/.]+$/, ""), artist: "Unknown Artist", album: "Unknown Album" };
+      try {
+        const parsedTags = await parseMetadata(file);
+        if (parsedTags) {
+          tags = { ...tags, ...parsedTags };
+        }
+      } catch (err) {
+        console.warn(`Failed to parse ID3 tags for ${file.name}`, err);
+      }
+      
       const fileKey = `${file.name}_${file.size}`;
-      if (existingFiles.has(fileKey)) {
+      const tagKey = `${normalizeStr(tags.title)}_${normalizeStr(tags.artist)}`;
+      
+      if (
+        existingFiles.has(fileKey) || 
+        (tags.title && tags.artist && tags.artist !== 'Unknown Artist' && tagKey.length > 3 && existingFiles.has(tagKey))
+      ) {
         setStatusMessage(`[SKIPPED] ${file.name} (Duplicate)`);
         console.log(`Skipped duplicate file: ${file.name}`);
         successCount++; // Count as success so UI doesn't show an error
@@ -73,16 +100,6 @@ export default function CloudinaryUpload({ onUploadComplete }) {
       setStatusMessage(`[UPLOADING] ${file.name}`);
       
       try {
-        // 1. Parse Metadata
-        let tags = { title: file.name.replace(/\.[^/.]+$/, ""), artist: "Unknown Artist", album: "Unknown Album" };
-        try {
-          const parsedTags = await parseMetadata(file);
-          if (parsedTags) {
-            tags = { ...tags, ...parsedTags };
-          }
-        } catch (err) {
-          console.warn(`Failed to parse ID3 tags for ${file.name}`, err);
-        }
         
         // 1.5 Start Artwork Upload in Parallel (Zero extra latency!)
         let artworkUrlPromise = Promise.resolve(null);
