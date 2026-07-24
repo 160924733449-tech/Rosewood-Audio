@@ -370,7 +370,7 @@ export default function NowPlayingOverlay({
                   border: eqPreset !== 'flat' ? '1px solid rgba(32,201,151,0.3)' : '1px solid rgba(255,255,255,0.1)'
                 }}
               >
-                <SlidersHorizontal size={16} /> {eqPreset.toUpperCase()}
+                <SlidersHorizontal size={16} /> {eqPreset === 'flat' ? 'DEFAULT (ORIGINAL)' : eqPreset.replace('-', ' ').toUpperCase()}
               </button>
               
               {showEqMenu && (
@@ -388,30 +388,36 @@ export default function NowPlayingOverlay({
                   flexDirection: 'column',
                   gap: '4px',
                   zIndex: 10,
-                  boxShadow: 'var(--shadow-xl)'
+                  boxShadow: 'var(--shadow-xl)',
+                  width: '160px'
                 }}>
-                  {['flat', 'bass-boost', 'acoustic', 'vocal'].map(p => (
-                    <button 
-                      key={p}
-                      onClick={() => {
-                        setEqPreset(p);
-                        audioEngine.setEQ(p);
-                        setShowEqMenu(false);
-                      }}
-                      style={{
-                        padding: '8px 16px',
-                        background: eqPreset === p ? 'var(--bg-surface-hover)' : 'transparent',
-                        color: eqPreset === p ? 'var(--accent-teal)' : 'var(--text-primary)',
-                        border: 'none',
-                        borderRadius: '6px',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontWeight: eqPreset === p ? 'bold' : 'normal'
-                      }}
-                    >
-                      {p.toUpperCase()}
-                    </button>
-                  ))}
+                  {['flat', 'bass-boost', 'acoustic', 'vocal'].map(p => {
+                    let label = p.replace('-', ' ').toUpperCase();
+                    if (p === 'flat') label = 'DEFAULT (ORIGINAL)';
+                    return (
+                      <button 
+                        key={p}
+                        onClick={() => {
+                          setEqPreset(p);
+                          audioEngine.setEQ(p);
+                          setShowEqMenu(false);
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          background: eqPreset === p ? 'var(--bg-surface-hover)' : 'transparent',
+                          color: eqPreset === p ? 'var(--accent-teal)' : 'var(--text-primary)',
+                          border: 'none',
+                          borderRadius: '6px',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontWeight: eqPreset === p ? 'bold' : 'normal',
+                          fontSize: '12px'
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
