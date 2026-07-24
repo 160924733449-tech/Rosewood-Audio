@@ -689,7 +689,7 @@ export default function MainView({
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
               <h2>Your Collection</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {isAdmin && tracks.length > 0 && (
+                {tracks.length > 0 && (
                   <button
                     onClick={toggleSelectionMode}
                     style={{
@@ -757,15 +757,22 @@ export default function MainView({
             </div>
             {isSelectionMode && (
               <div style={{
-                width: '100%',
+                position: 'fixed',
+                bottom: currentTrack ? '100px' : '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '90%',
+                maxWidth: '800px',
                 background: '#ccc',
                 border: '2px solid #000',
-                padding: '8px',
+                padding: '12px 16px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 fontFamily: 'monospace',
-                color: '#000'
+                color: '#000',
+                zIndex: 100,
+                boxShadow: '4px 4px 0 #000'
               }}>
                 <div>SELECTED: {selectedTrackIds.size}</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -774,14 +781,16 @@ export default function MainView({
                   <div style={{ position: 'relative' }}>
                     <button onClick={() => setShowBulkPlaylistPicker(!showBulkPlaylistPicker)} style={{ border: '2px solid #000', background: '#000', color: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>ADD TO PLAYLIST</button>
                     {showBulkPlaylistPicker && (
-                      <div style={{ position: 'absolute', top: '100%', right: 0, background: '#fff', border: '2px solid #000', padding: '4px', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
+                      <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '8px', background: '#fff', border: '2px solid #000', padding: '4px', display: 'flex', flexDirection: 'column', zIndex: 110, maxHeight: '200px', overflowY: 'auto', minWidth: '150px' }}>
                         {playlists.map(pl => (
-                          <div key={pl.id} onClick={() => handleBulkAdd(pl.id)} style={{ padding: '4px 8px', cursor: 'pointer', borderBottom: '1px solid #ccc' }}>{pl.name}</div>
+                          <div key={pl.id} onClick={() => handleBulkAdd(pl.id)} style={{ padding: '8px', cursor: 'pointer', borderBottom: '1px solid #ccc' }}>{pl.name}</div>
                         ))}
                       </div>
                     )}
                   </div>
-                  <button onClick={handleBulkDelete} style={{ border: '2px solid #000', background: 'red', color: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>DELETE</button>
+                  {isAdmin && (
+                    <button onClick={handleBulkDelete} style={{ border: '2px solid #000', background: 'red', color: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>DELETE</button>
+                  )}
                 </div>
               </div>
             )}
