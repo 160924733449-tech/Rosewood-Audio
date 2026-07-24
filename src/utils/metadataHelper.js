@@ -44,14 +44,11 @@ export function parseMetadata(file) {
           if (tags.picture) {
             const { data, format } = tags.picture;
             try {
-              let binary = '';
               const bytes = new Uint8Array(data);
-              for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
-              artwork = `data:${format};base64,${btoa(binary)}`;
+              const blob = new Blob([bytes], { type: format || 'image/jpeg' });
+              artwork = URL.createObjectURL(blob);
             } catch (err) {
-              console.error('Error parsing artwork:', err);
+              console.error('Error creating artwork blob:', err);
             }
           }
 

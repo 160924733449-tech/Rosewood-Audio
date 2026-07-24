@@ -380,15 +380,17 @@ export default function NowPlayingOverlay({
                   right: '50%',
                   transform: 'translateX(50%)',
                   marginBottom: '8px',
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border-subtle)',
+                  background: 'rgba(15, 15, 15, 0.98)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
                   borderRadius: '12px',
                   padding: '8px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '4px',
                   zIndex: 10,
-                  boxShadow: 'var(--shadow-xl)',
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
                   width: '160px'
                 }}>
                   {['flat', 'bass-boost', 'acoustic', 'vocal'].map(p => {
