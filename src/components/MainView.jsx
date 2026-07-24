@@ -34,7 +34,8 @@ export default function MainView({
   isAdmin,
   onDeleteTrack,
   onBulkAddToPlaylist,
-  onBulkDeleteTracks
+  onBulkDeleteTracks,
+  expandPlayer
 }) {
   const [recommendations, setRecommendations] = useState({ dailyMix: [], similarTracks: [], forgottenGems: [] });
   const [topMatches, setTopMatches] = useState([]);
@@ -980,7 +981,17 @@ export default function MainView({
                 <div key={pl.id} className="playlist-card glass">
                   <div className="playlist-card-art-container" onClick={() => { setActivePlaylistId(pl.id); setCurrentTab('playlist'); }}>
                     {renderPlaylistCollage(pl)}
-                    <div className="card-play-overlay">
+                    <div 
+                      className="card-play-overlay"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const plTracks = tracks.filter(t => pl.tracks.includes(t.id));
+                        if (plTracks.length > 0) {
+                          onPlayTrack(plTracks[0], plTracks);
+                          if (expandPlayer) expandPlayer();
+                        }
+                      }}
+                    >
                       <Play size={24} fill="#000" style={{ transform: 'translateX(1px)' }} />
                     </div>
                   </div>

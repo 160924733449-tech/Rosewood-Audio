@@ -1270,13 +1270,14 @@ export default function App() {
   };
 
   const handleCreatePlaylist = async (name, isGlobal = false, coverImages = []) => {
+    const finalIsGlobal = isGlobal || isAdmin;
     const finalName = name && name.trim() ? name.trim() : `Playlist-${playlists.length + 1}`;
     const newPlaylist = {
       id: `pl:${Date.now()}`,
       name: finalName,
       dp: null,
       tracks: [],
-      isGlobal,
+      isGlobal: finalIsGlobal,
       coverImages,
       createdBy: userProfile?.displayName || 'admin'
     };
@@ -1488,6 +1489,7 @@ export default function App() {
           onDeleteTrack={handleDeleteTrack}
           onBulkAddToPlaylist={handleBulkAddToPlaylist}
           onBulkDeleteTracks={handleBulkDeleteTracks}
+          expandPlayer={() => setIsNowPlayingExpanded(true)}
         />
       </div>
       {(!isAdmin || currentTrack) && (

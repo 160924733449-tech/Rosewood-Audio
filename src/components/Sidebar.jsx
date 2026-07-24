@@ -98,10 +98,14 @@ export default function Sidebar({
   return (
     <>
     <aside className="sidebar glass">
-      <div className="sidebar-logo">
+      <button 
+        className="sidebar-logo" 
+        onClick={() => setCurrentTab(isAdmin ? 'library' : 'home')}
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '16px' }}
+      >
         <img src="/icon.png" alt="Reson8 Logo" className="logo-icon" style={{ width: '48px', height: '48px', objectFit: 'contain', transform: 'scale(1.5)' }} />
         <h2>RESON8</h2>
-      </div>
+      </button>
 
 
 

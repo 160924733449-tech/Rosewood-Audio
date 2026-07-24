@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { parseMetadata } from '../utils/metadataHelper';
 import { db } from '../config/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
 
 export default function CloudinaryUpload({ onUploadComplete }) {
   const [isUploading, setIsUploading] = useState(false);
@@ -42,10 +42,34 @@ export default function CloudinaryUpload({ onUploadComplete }) {
     
     let successCount = 0;
     
+    // Fetch existing library to prevent duplicates
+    let existingFiles = new Map();
+    try {
+      const snap = await getDocs(collection(db, 'libraryMetadata'));
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.name && data.size) {
+          existingFiles.set(`${data.name}_${data.size}`, true);
+        }
+      });
+    } catch (err) {
+      console.warn("Failed to fetch existing library for duplicate check", err);
+    }
+    
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setCurrentFileIndex(i + 1);
       setChunkProgress(0);
+      setChunkProgress(0);
+      
+      const fileKey = `${file.name}_${file.size}`;
+      if (existingFiles.has(fileKey)) {
+        setStatusMessage(`[SKIPPED] ${file.name} (Duplicate)`);
+        console.log(`Skipped duplicate file: ${file.name}`);
+        successCount++; // Count as success so UI doesn't show an error
+        continue;
+      }
+      
       setStatusMessage(`[UPLOADING] ${file.name}`);
       
       try {
