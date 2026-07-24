@@ -63,6 +63,16 @@ export default function MainView({
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedTrackIds, setSelectedTrackIds] = useState(new Set());
   const [showBulkPlaylistPicker, setShowBulkPlaylistPicker] = useState(false);
+  const [sortOption, setSortOption] = useState('default');
+
+  const getSortedTracks = (trackList) => {
+    if (sortOption === 'default') return trackList;
+    if (sortOption === 'recent') return [...trackList].reverse();
+    if (sortOption === 'title-asc') return [...trackList].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    if (sortOption === 'title-desc') return [...trackList].sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+    if (sortOption === 'artist-asc') return [...trackList].sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
+    return trackList;
+  };
 
   const { openMenu } = useContextMenu();
 
@@ -714,6 +724,28 @@ export default function MainView({
                     {syncingOffline ? (syncProgress === 100 ? 'Synced!' : `Syncing... ${syncProgress}%`) : 'Sync Offline'}
                   </button>
                 )}
+                {isAdmin && tracks.length > 0 && (
+                  <select
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value)}
+                    style={{
+                      padding: '4px 8px',
+                      background: 'var(--bg-surface)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="default">Default</option>
+                    <option value="recent">Recently Added</option>
+                    <option value="title-asc">Title (A-Z)</option>
+                    <option value="title-desc">Title (Z-A)</option>
+                    <option value="artist-asc">Artist (A-Z)</option>
+                  </select>
+                )}
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tracks.length} Songs Loaded</span>
               </div>
             </div>
@@ -802,19 +834,19 @@ export default function MainView({
             )}
           </div>
           {(() => {
+            let listToRender = tracks;
             if (searchQuery.trim()) {
               const query = searchQuery.toLowerCase();
-              const filtered = tracks.filter(t => 
+              listToRender = tracks.filter(t => 
                 (t.title && t.title.toLowerCase().includes(query)) || 
                 (t.artist && t.artist.toLowerCase().includes(query)) || 
                 (t.album && t.album.toLowerCase().includes(query))
               );
-              if (filtered.length === 0) {
+              if (listToRender.length === 0) {
                 return <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '40px 0' }}>No tracks found for "{searchQuery}"</div>;
               }
-              return renderTrackTable(filtered);
             }
-            return renderTrackTable(tracks);
+            return renderTrackTable(getSortedTracks(listToRender));
           })()}
         </>
       )}
