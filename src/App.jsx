@@ -660,6 +660,19 @@ export default function App() {
       }
 
       if (combinedPlaylists.length > 0) {
+        // Sync legacy admin playlists to global
+        const adminNames = (import.meta.env.VITE_ADMIN_USERNAMES || '').split(',').map(u => u.trim().toLowerCase());
+        const isUserAdmin = adminNames.includes(username.toLowerCase());
+        
+        if (isUserAdmin) {
+          combinedPlaylists.forEach(pl => {
+            if (!pl.isGlobal) {
+              pl.isGlobal = true;
+              saveGlobalPlaylist(pl.id, pl.name, pl.tracks, pl.coverImages, pl.createdBy);
+            }
+          });
+        }
+      
         setPlaylists(combinedPlaylists);
         // Fire-and-forget batch save — don't block login on IDB writes
         Promise.all(combinedPlaylists.map(p => savePlaylist(p))).catch(() => {});
