@@ -6,6 +6,7 @@ import MainView from './components/MainView';
 import PlayerBar from './components/PlayerBar';
 import NowPlayingOverlay from './components/NowPlayingOverlay';
 import MobileBottomNav from './components/MobileBottomNav';
+import { audioEngine } from './utils/audioEngine';
 
 import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, getAllCachedAudioIds, saveAudioBlobToIDB } from './utils/db';
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
@@ -60,7 +61,7 @@ export default function App() {
   };
   const [playedHistory, setPlayedHistory] = useState([]);
   const [isNowPlayingExpanded, setIsNowPlayingExpanded] = useState(false);
-
+  const crossfadeTriggeredRef = useRef(false);
 
   const audioRef = useRef(null); // Keep this for legacy references that still use it for non-playback things
   const audioElementsRef = useRef([]); // [new Audio(), new Audio()]
@@ -390,6 +391,15 @@ export default function App() {
     audioElementsRef.current[0].volume = volume;
     audioElementsRef.current[1].volume = 0; // Inactive one should be silent during preload
     
+    // Initialize Web Audio Engine
+    try {
+      audioEngine.init(audioElementsRef.current[0], audioElementsRef.current[1]);
+      audioElementsRef.current[0].gainNode.gain.value = volume;
+      audioElementsRef.current[1].gainNode.gain.value = 0;
+    } catch (e) {
+      console.warn("Failed to init AudioEngine:", e);
+    }
+    
     // We still keep audioRef pointing to the active one for legacy support in other hooks (like keyboard shortcuts)
     audioRef.current = audioElementsRef.current[0];
 
@@ -418,6 +428,16 @@ export default function App() {
         if (e.target.currentTime > 15 && !hasSmartCachedRef.current && currentTrackRef.current) {
           hasSmartCachedRef.current = true;
           smartCacheTrack(currentTrackRef.current);
+        }
+        // Crossfade Logic: If we are near the end of the track (e.g. 8 seconds left), start playing the next track
+        // Only if autoNext is enabled, and we haven't already triggered it.
+        if (autoNext && !repeat && e.target.duration > 30) {
+          const timeRemaining = e.target.duration - e.target.currentTime;
+          if (timeRemaining <= 8.0 && !crossfadeTriggeredRef.current) {
+            crossfadeTriggeredRef.current = true;
+            console.log("[Crossfade] 8 seconds remaining. Triggering gapless crossfade to next track.");
+            handleNextTrack(true); // true = isCrossfade
+          }
         }
       }
     };
@@ -543,6 +563,9 @@ export default function App() {
     if (audioElementsRef.current.length === 2) {
       // Only the active player gets full volume
       audioElementsRef.current[activeIndexRef.current].volume = volume;
+      if (audioElementsRef.current[activeIndexRef.current].gainNode) {
+        audioElementsRef.current[activeIndexRef.current].gainNode.gain.value = volume;
+      }
       localStorage.setItem('aura_volume', volume);
     }
   }, [volume]);
@@ -759,12 +782,13 @@ export default function App() {
     handlePlayTrack(track, [], startPosition, false);
   };
 
-  const handlePlayTrack = async (track, queue = [], startPosition = 0, autoPlay = true) => {
+  const handlePlayTrack = async (track, queue = [], startPosition = 0, autoPlay = true, isCrossfade = false) => {
     if (!audioRef.current) return;
     if (loadingTrack && loadingTrackIdRef.current === track.id) return; // Prevent spam clicking the same track
 
     upcomingTracksRef.current = []; // Clear cached upcoming tracks
     hasSmartCachedRef.current = false; // Reset smart cache flag for the new track
+    if (!isCrossfade) crossfadeTriggeredRef.current = false; // Reset crossfade trigger on manual play
 
     if (currentTrack) {
       setPlayedHistory(prev => [...prev, currentTrack]);
@@ -772,9 +796,18 @@ export default function App() {
 
     // CRITICAL FIX: Immediately pause the current audio so it doesn't keep playing 
     // while we wait for the new track's network fetch to complete.
-    if (audioElementsRef.current.length === 2) {
+    if (audioElementsRef.current.length === 2 && !isCrossfade) {
       audioElementsRef.current[activeIndexRef.current].pause();
+    } else if (isCrossfade && audioElementsRef.current.length === 2) {
+      const fadingOutAudio = audioElementsRef.current[activeIndexRef.current];
+      // Start fading out the old track over 8 seconds
+      tweenVolume(fadingOutAudio, 0, 8000).then(() => {
+        fadingOutAudio.pause();
+      });
     }
+    
+    // Ensure Web Audio API is resumed on user gesture
+    if (audioEngine) audioEngine.resume();
 
     // 1. Instantly set track to trigger UI update and glide-up animation
     setCurrentTrack(track);
@@ -969,6 +1002,7 @@ export default function App() {
     if (!currentTrack) return;
     if (loadingTrack) return; // Prevent playing old track while fetching new one
     
+    audioEngine.resume();
     if (IS_NATIVE) {
       Haptics.impact({ style: ImpactStyle.Light }).catch(()=>{});
     }
@@ -985,10 +1019,11 @@ export default function App() {
       }
 
       audioRef.current.volume = 0;
+      if (audioRef.current.gainNode) audioRef.current.gainNode.gain.value = 0;
       audioRef.current.play()
         .then(() => {
           setIsPlaying(true);
-          tweenVolume(audioRef.current, volume, 300);
+          tweenVolume(audioRef.current, volume, isCrossfade ? 8000 : 300);
         })
         .catch(err => console.error('Playback failed:', err));
     }
@@ -1018,6 +1053,7 @@ export default function App() {
 
     if (repeat) {
       audioRef.current.currentTime = 0;
+      audioEngine.resume(); // Ensure AudioContext is active on user interaction
       audioRef.current.play().catch(e => console.log(e));
     } else if (autoNext) {
       handleNextTrack();
@@ -1026,14 +1062,14 @@ export default function App() {
     }
   };
 
-  const handleNextTrack = async () => {
+  const handleNextTrack = async (isCrossfade = false) => {
     if (tracks.length === 0) return;
     if (loadingTrack) return; // Prevent skipping multiple times while loading
-    if (IS_NATIVE) {
+    if (!isCrossfade && IS_NATIVE) {
       Haptics.impact({ style: ImpactStyle.Light }).catch(()=>{});
     }
 
-    if (currentTrack && currentTime < 30 && isPlaying) {
+    if (currentTrack && currentTime < 30 && isPlaying && !isCrossfade) {
       const syncConfig = {
         mode: userMode,
         userId: userProfile?.displayName
@@ -1055,7 +1091,7 @@ export default function App() {
     }
 
     if (nextTrack) {
-      handlePlayTrack(nextTrack, activeQueue);
+      handlePlayTrack(nextTrack, activeQueue, 0, true, isCrossfade);
     }
   };
 

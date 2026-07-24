@@ -14,11 +14,12 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
       clearInterval(audio._tweenInterval);
     }
 
-    const startVol = audio.volume;
+    const startVol = audio.gainNode ? audio.gainNode.gain.value : audio.volume;
     const diff = targetVol - startVol;
     
     if (diff === 0 || durationMs <= 0) {
-      audio.volume = Math.max(0, Math.min(1, targetVol));
+      if (audio.gainNode) audio.gainNode.gain.value = Math.max(0, Math.min(1, targetVol));
+      else audio.volume = Math.max(0, Math.min(1, targetVol));
       return resolve();
     }
 
@@ -36,7 +37,11 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
       if (nextVol > 1) nextVol = 1;
       
       try {
-        audio.volume = nextVol;
+        if (audio.gainNode) {
+          audio.gainNode.gain.value = nextVol;
+        } else {
+          audio.volume = nextVol;
+        }
       } catch (e) {
         // Handle edge cases where audio element might be destroyed
         clearInterval(audio._tweenInterval);
@@ -46,7 +51,8 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
       if (currentStep >= steps) {
         clearInterval(audio._tweenInterval);
         try {
-          audio.volume = Math.max(0, Math.min(1, targetVol));
+          if (audio.gainNode) audio.gainNode.gain.value = Math.max(0, Math.min(1, targetVol));
+          else audio.volume = Math.max(0, Math.min(1, targetVol));
         } catch(e){}
         resolve();
       }

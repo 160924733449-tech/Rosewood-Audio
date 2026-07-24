@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Loader2 } from 'lucide-react';
+import { ChevronDown, Play, Pause, SkipForward, SkipBack, Shuffle, RotateCcw, Volume2, VolumeX, Disc, Loader2, Mic2, SlidersHorizontal } from 'lucide-react';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import AudioVisualizer from './AudioVisualizer';
 import LyricsBoard from './LyricsBoard';
 import { fetchLyrics, parseLrc } from '../utils/lyricsApi';
 import { extractDominantColor } from '../utils/colorExtractor';
 import { triggerHaptic } from '../utils/haptics';
+import { audioEngine } from '../utils/audioEngine';
 
 export default function NowPlayingOverlay({
   track,
@@ -28,6 +29,9 @@ export default function NowPlayingOverlay({
   const [isClosing, setIsClosing] = useState(false);
   const [lyrics, setLyrics] = useState(null);
   const [albumColor, setAlbumColor] = useState('var(--accent-rose)');
+  const [eqPreset, setEqPreset] = useState('flat');
+  const [isKaraoke, setIsKaraoke] = useState(false);
+  const [showEqMenu, setShowEqMenu] = useState(false);
   
   const timelineRef = useRef(null);
   const volumeRef = useRef(null);
@@ -323,6 +327,95 @@ export default function NowPlayingOverlay({
               <AudioVisualizer isPlaying={isPlaying} />
             </div>
             
+            {/* Audio Settings Panel */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', margin: '12px 0 16px', position: 'relative' }}>
+              <button 
+                className={`control-btn ${isKaraoke ? 'active' : ''}`}
+                onClick={() => {
+                  const newState = !isKaraoke;
+                  setIsKaraoke(newState);
+                  audioEngine.setKaraoke(newState);
+                  triggerHaptic('medium');
+                }}
+                style={{ 
+                  color: isKaraoke ? 'var(--accent-coral)' : 'var(--text-secondary)',
+                  background: isKaraoke ? 'rgba(255,107,107,0.1)' : 'transparent',
+                  padding: '8px 12px',
+                  borderRadius: '100px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  border: isKaraoke ? '1px solid rgba(255,107,107,0.3)' : '1px solid rgba(255,255,255,0.1)'
+                }}
+                title="Karaoke Mode (Vocal Reduction)"
+              >
+                <Mic2 size={16} /> Karaoke
+              </button>
+              
+              <button 
+                className="control-btn"
+                onClick={() => setShowEqMenu(!showEqMenu)}
+                style={{ 
+                  color: eqPreset !== 'flat' ? 'var(--accent-teal)' : 'var(--text-secondary)',
+                  background: eqPreset !== 'flat' ? 'rgba(32,201,151,0.1)' : 'transparent',
+                  padding: '8px 12px',
+                  borderRadius: '100px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  border: eqPreset !== 'flat' ? '1px solid rgba(32,201,151,0.3)' : '1px solid rgba(255,255,255,0.1)'
+                }}
+              >
+                <SlidersHorizontal size={16} /> {eqPreset.toUpperCase()}
+              </button>
+              
+              {showEqMenu && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  right: '50%',
+                  transform: 'translateX(50%)',
+                  marginBottom: '8px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '12px',
+                  padding: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  zIndex: 10,
+                  boxShadow: 'var(--shadow-xl)'
+                }}>
+                  {['flat', 'bass-boost', 'acoustic', 'vocal'].map(p => (
+                    <button 
+                      key={p}
+                      onClick={() => {
+                        setEqPreset(p);
+                        audioEngine.setEQ(p);
+                        setShowEqMenu(false);
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        background: eqPreset === p ? 'var(--bg-surface-hover)' : 'transparent',
+                        color: eqPreset === p ? 'var(--accent-teal)' : 'var(--text-primary)',
+                        border: 'none',
+                        borderRadius: '6px',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontWeight: eqPreset === p ? 'bold' : 'normal'
+                      }}
+                    >
+                      {p.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Progress Slider */}
             <div className="player-timeline">
               <span className="time-stamp">{formatTime(currentTime)}</span>
