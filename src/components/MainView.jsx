@@ -67,7 +67,13 @@ export default function MainView({
 
   const getSortedTracks = (trackList) => {
     if (sortOption === 'default') return trackList;
-    if (sortOption === 'recent') return [...trackList].reverse();
+    if (sortOption === 'recent') {
+      return [...trackList].sort((a, b) => {
+        const timeA = a.createdAt || 0;
+        const timeB = b.createdAt || 0;
+        return timeB - timeA;
+      });
+    }
     if (sortOption === 'title-asc') return [...trackList].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
     if (sortOption === 'title-desc') return [...trackList].sort((a, b) => (b.title || '').localeCompare(a.title || ''));
     if (sortOption === 'artist-asc') return [...trackList].sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));

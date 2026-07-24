@@ -160,6 +160,7 @@ export default function CloudinaryUpload({ onUploadComplete }) {
           source: 'cloudinary',
           url: secureUrl, // Direct streaming URL
           artwork: finalArtworkUrl,
+          createdAt: Date.now(),
         };
         
         const trackRef = doc(db, 'libraryMetadata', trackId);
