@@ -140,21 +140,57 @@ export default function App() {
   const determineNextTracks = async (currTrack, count = 3) => {
     if (tracks.length === 0) return [];
     
-    // Batch fetch state once to avoid N+1 queries during preloading
-    const history = await getPlayHistory();
-    const affinities = await getAllAffinities();
-    
     let upcoming = [];
     let current = currTrack;
+    const queue = activeQueue.length > 0 ? activeQueue : tracks;
+    let currentIndex = queue.findIndex(t => t.id === current?.id);
+    
+    let history = null;
+    let affinities = null;
     
     for (let i = 0; i < count; i++) {
-      const next = getNextTrackAutoplayWithState(tracks, current, history, affinities);
+      let next = null;
+      
+      if (shuffle) {
+        // Exclude currently playing track and already queued tracks
+        const playedIds = new Set([currTrack?.id, ...upcoming.map(t=>t.id)]);
+        const unplayed = queue.filter(t => !playedIds.has(t.id));
+        
+        if (unplayed.length > 0) {
+          // Predictable pseudo-random seed to prevent the queue from rapidly changing on React re-renders
+          const seedStr = (current?.id || '') + queue.length + i;
+          let hash = 0;
+          for (let j = 0; j < seedStr.length; j++) {
+            hash = ((hash << 5) - hash) + seedStr.charCodeAt(j);
+            hash = hash & hash;
+          }
+          const randomIndex = Math.abs(hash) % unplayed.length;
+          next = unplayed[randomIndex];
+        }
+      } else {
+        if (currentIndex >= 0 && currentIndex + 1 < queue.length) {
+          currentIndex++;
+          next = queue[currentIndex];
+        }
+      }
+      
+      // Fallback to Smart Autoplay if we reached the end of the queue
+      if (!next) {
+        if (!history) {
+          history = await getPlayHistory();
+          affinities = await getAllAffinities();
+        }
+        next = getNextTrackAutoplayWithState(tracks, current, history, affinities);
+      }
+      
       if (!next || upcoming.some(t => t.id === next.id)) break;
       upcoming.push(next);
       current = next;
     }
+    
     return upcoming;
   };
+
 
   const smartCacheTrack = (track) => {
     if (!track || !track.url || track.source === 'local') return;
