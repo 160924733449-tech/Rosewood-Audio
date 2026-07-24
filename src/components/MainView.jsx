@@ -693,18 +693,19 @@ export default function MainView({
                   <button
                     onClick={toggleSelectionMode}
                     style={{
-                      background: isSelectionMode ? '#000' : '#fff',
-                      color: isSelectionMode ? '#fff' : '#000',
-                      border: '2px solid #000',
-                      padding: '4px 8px',
-                      fontFamily: 'monospace',
-                      fontWeight: 'bold',
+                      background: isSelectionMode ? (isAdmin ? '#000' : 'var(--gradient-accent)') : (isAdmin ? '#fff' : 'transparent'),
+                      color: isSelectionMode ? '#fff' : (isAdmin ? '#000' : 'var(--text-secondary)'),
+                      border: isAdmin ? '2px solid #000' : '1px solid var(--border-subtle)',
+                      padding: isAdmin ? '4px 8px' : '6px 12px',
+                      fontFamily: isAdmin ? 'monospace' : 'inherit',
+                      fontWeight: isAdmin ? 'bold' : '600',
                       fontSize: '12px',
                       cursor: 'pointer',
-                      borderRadius: '0'
+                      borderRadius: isAdmin ? '0' : '100px',
+                      transition: 'all 0.2s ease'
                     }}
                   >
-                    {isSelectionMode ? '[X] CANCEL SELECT' : '[ ] MASS SELECT'}
+                    {isSelectionMode ? (isAdmin ? '[X] CANCEL SELECT' : 'Cancel Selection') : (isAdmin ? '[ ] MASS SELECT' : 'Mass Select')}
                   </button>
                 )}
                 {userMode === 'shared' && !isOffline && tracks.length > 0 && (
@@ -763,33 +764,34 @@ export default function MainView({
                 transform: 'translateX(-50%)',
                 width: '90%',
                 maxWidth: '800px',
-                background: '#ccc',
-                border: '2px solid #000',
+                background: isAdmin ? '#ccc' : 'var(--bg-surface)',
+                border: isAdmin ? '2px solid #000' : '1px solid var(--border-subtle)',
                 padding: '12px 16px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                fontFamily: 'monospace',
-                color: '#000',
+                fontFamily: isAdmin ? 'monospace' : 'inherit',
+                color: isAdmin ? '#000' : 'var(--text-primary)',
                 zIndex: 100,
-                boxShadow: '4px 4px 0 #000'
+                boxShadow: isAdmin ? '4px 4px 0 #000' : 'var(--shadow-xl)',
+                borderRadius: isAdmin ? '0' : '16px'
               }}>
-                <div>SELECTED: {selectedTrackIds.size}</div>
+                <div style={{ fontWeight: 'bold' }}>SELECTED: {selectedTrackIds.size}</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => setSelectedTrackIds(new Set(tracks.map(t => t.id)))} style={{ border: '2px solid #000', background: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>SELECT ALL</button>
-                  <button onClick={() => setSelectedTrackIds(new Set())} style={{ border: '2px solid #000', background: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>DESELECT</button>
+                  <button onClick={() => setSelectedTrackIds(new Set(tracks.map(t => t.id)))} style={{ border: isAdmin ? '2px solid #000' : 'none', background: isAdmin ? '#fff' : 'var(--bg-surface-hover)', padding: '6px 12px', cursor: 'pointer', fontWeight: 'bold', borderRadius: isAdmin ? '0' : '8px', color: isAdmin ? '#000' : 'var(--text-primary)' }}>SELECT ALL</button>
+                  <button onClick={() => setSelectedTrackIds(new Set())} style={{ border: isAdmin ? '2px solid #000' : 'none', background: isAdmin ? '#fff' : 'var(--bg-surface-hover)', padding: '6px 12px', cursor: 'pointer', fontWeight: 'bold', borderRadius: isAdmin ? '0' : '8px', color: isAdmin ? '#000' : 'var(--text-primary)' }}>DESELECT</button>
                   <div style={{ position: 'relative' }}>
-                    <button onClick={() => setShowBulkPlaylistPicker(!showBulkPlaylistPicker)} style={{ border: '2px solid #000', background: '#000', color: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>ADD TO PLAYLIST</button>
+                    <button onClick={() => setShowBulkPlaylistPicker(!showBulkPlaylistPicker)} style={{ border: isAdmin ? '2px solid #000' : 'none', background: isAdmin ? '#000' : 'var(--gradient-accent)', color: '#fff', padding: '6px 12px', cursor: 'pointer', fontWeight: 'bold', borderRadius: isAdmin ? '0' : '8px' }}>ADD TO PLAYLIST</button>
                     {showBulkPlaylistPicker && (
-                      <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '8px', background: '#fff', border: '2px solid #000', padding: '4px', display: 'flex', flexDirection: 'column', zIndex: 110, maxHeight: '200px', overflowY: 'auto', minWidth: '150px' }}>
+                      <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '8px', background: isAdmin ? '#fff' : 'var(--bg-surface)', border: isAdmin ? '2px solid #000' : '1px solid var(--border-subtle)', borderRadius: isAdmin ? '0' : '12px', padding: '8px', display: 'flex', flexDirection: 'column', zIndex: 110, maxHeight: '200px', overflowY: 'auto', minWidth: '160px', boxShadow: 'var(--shadow-xl)' }}>
                         {playlists.map(pl => (
-                          <div key={pl.id} onClick={() => handleBulkAdd(pl.id)} style={{ padding: '8px', cursor: 'pointer', borderBottom: '1px solid #ccc' }}>{pl.name}</div>
+                          <div key={pl.id} onClick={() => handleBulkAdd(pl.id)} style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: isAdmin ? '1px solid #ccc' : '1px solid var(--border-subtle)', color: isAdmin ? '#000' : 'var(--text-primary)', fontWeight: '500', borderRadius: isAdmin ? '0' : '6px' }}>{pl.name}</div>
                         ))}
                       </div>
                     )}
                   </div>
                   {isAdmin && (
-                    <button onClick={handleBulkDelete} style={{ border: '2px solid #000', background: 'red', color: '#fff', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold' }}>DELETE</button>
+                    <button onClick={handleBulkDelete} style={{ border: '2px solid #000', background: 'red', color: '#fff', padding: '6px 12px', cursor: 'pointer', fontWeight: 'bold' }}>DELETE</button>
                   )}
                 </div>
               </div>
