@@ -1590,6 +1590,10 @@ export default function App() {
           onBulkAddToPlaylist={handleBulkAddToPlaylist}
           onBulkDeleteTracks={handleBulkDeleteTracks}
           expandPlayer={() => setIsNowPlayingExpanded(true)}
+          onToggleFriendActivity={() => setShowFriendActivity(prev => !prev)}
+          onToggleJamSession={() => setShowJamSession(prev => !prev)}
+          isPrivateListening={isPrivateListening}
+          setIsPrivateListening={setIsPrivateListening}
         />
       </div>
       {(!isAdmin || currentTrack) && (

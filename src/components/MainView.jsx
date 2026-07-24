@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical, Download, LogOut, Settings, Trash2, RefreshCw, Shuffle, Image } from 'lucide-react';
+import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical, Download, LogOut, Settings, Trash2, RefreshCw, Shuffle, Image, Users, Radio, EyeOff, Eye } from 'lucide-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { getRecommendations, getTopMatches } from '../utils/recommendationEngine';
 import { generateDaylist } from '../utils/aiFeatures';
@@ -36,7 +36,11 @@ export default function MainView({
   onDeleteTrack,
   onBulkAddToPlaylist,
   onBulkDeleteTracks,
-  expandPlayer
+  expandPlayer,
+  onToggleFriendActivity,
+  onToggleJamSession,
+  isPrivateListening,
+  setIsPrivateListening
 }) {
   const [recommendations, setRecommendations] = useState({ dailyMix: [], similarTracks: [], forgottenGems: [] });
   const [daylistTracks, setDaylistTracks] = useState([]);
@@ -1147,6 +1151,37 @@ export default function MainView({
                 <option value="high">High (Original)</option>
               </select>
             </div>
+
+            <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <h3 style={{ marginBottom: '4px', fontSize: '16px', color: 'var(--text-primary)' }}>Features</h3>
+              <button 
+                className="option-btn hover-scale" 
+                onClick={onToggleFriendActivity}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
+              >
+                <Users size={18} color="var(--accent-coral)" />
+                <span>Friend Activity</span>
+              </button>
+              
+              <button 
+                className="option-btn hover-scale" 
+                onClick={() => setIsPrivateListening(!isPrivateListening)}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
+              >
+                {isPrivateListening ? <EyeOff size={18} color="var(--accent-coral)" /> : <Eye size={18} color="var(--accent-coral)" />}
+                <span>Private Listening</span>
+              </button>
+
+              <button 
+                className="option-btn hover-scale" 
+                onClick={onToggleJamSession}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
+              >
+                <Radio size={18} color="var(--accent-coral)" />
+                <span>Jam Session</span>
+              </button>
+            </div>
+
 
             {!isNative && (
               <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px' }}>
