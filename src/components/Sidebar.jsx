@@ -157,27 +157,7 @@ export default function Sidebar({
           <span>Settings</span>
         </button>
 
-        {!isAdmin && userMode === 'shared' && (
-          <>
-            <div className="sidebar-divider" style={{ margin: '8px 0' }}></div>
-            <button
-              className="menu-item"
-              onClick={onToggleFriendActivity}
-              style={{ color: 'var(--accent-teal)' }}
-            >
-              <Users size={18} />
-              <span>Friends</span>
-            </button>
-            <button
-              className="menu-item"
-              onClick={onToggleJamSession}
-              style={{ color: 'var(--accent-coral)' }}
-            >
-              <Radio size={18} />
-              <span>Jam Session</span>
-            </button>
-          </>
-        )}
+
 
         {!isNative && (
           <a

@@ -1152,35 +1152,37 @@ export default function MainView({
               </select>
             </div>
 
-            <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <h3 style={{ marginBottom: '4px', fontSize: '16px', color: 'var(--text-primary)' }}>Features</h3>
-              <button 
-                className="option-btn hover-scale" 
-                onClick={onToggleFriendActivity}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
-              >
-                <Users size={18} color="var(--accent-coral)" />
-                <span>Friend Activity</span>
-              </button>
-              
-              <button 
-                className="option-btn hover-scale" 
-                onClick={() => setIsPrivateListening(!isPrivateListening)}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
-              >
-                {isPrivateListening ? <EyeOff size={18} color="var(--accent-coral)" /> : <Eye size={18} color="var(--accent-coral)" />}
-                <span>Private Listening</span>
-              </button>
+            {isNative && (
+              <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h3 style={{ marginBottom: '4px', fontSize: '16px', color: 'var(--text-primary)' }}>Features</h3>
+                <button 
+                  className="option-btn hover-scale" 
+                  onClick={onToggleFriendActivity}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
+                >
+                  <Users size={18} color="var(--accent-coral)" />
+                  <span>Friend Activity</span>
+                </button>
+                
+                <button 
+                  className="option-btn hover-scale" 
+                  onClick={() => setIsPrivateListening(!isPrivateListening)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
+                >
+                  {isPrivateListening ? <EyeOff size={18} color="var(--accent-coral)" /> : <Eye size={18} color="var(--accent-coral)" />}
+                  <span>Private Listening</span>
+                </button>
 
-              <button 
-                className="option-btn hover-scale" 
-                onClick={onToggleJamSession}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
-              >
-                <Radio size={18} color="var(--accent-coral)" />
-                <span>Jam Session</span>
-              </button>
-            </div>
+                <button 
+                  className="option-btn hover-scale" 
+                  onClick={onToggleJamSession}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)' }}
+                >
+                  <Radio size={18} color="var(--accent-coral)" />
+                  <span>Jam Session</span>
+                </button>
+              </div>
+            )}
 
 
             {!isNative && (
