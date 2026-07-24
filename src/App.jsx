@@ -6,7 +6,11 @@ import MainView from './components/MainView';
 import PlayerBar from './components/PlayerBar';
 import NowPlayingOverlay from './components/NowPlayingOverlay';
 import MobileBottomNav from './components/MobileBottomNav';
+import FriendActivity from './components/FriendActivity';
+import JamSession from './components/JamSession';
+import AIPlaylistModal from './components/AIPlaylistModal';
 import { audioEngine } from './utils/audioEngine';
+import { broadcastNowPlaying, stopBroadcasting } from './utils/socialHelper';
 
 import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, getAllCachedAudioIds, saveAudioBlobToIDB } from './utils/db';
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
@@ -52,6 +56,10 @@ export default function App() {
   const [isFetchingLibrary, setIsFetchingLibrary] = useState(false);
   const [isBooting, setIsBooting] = useState(IS_NATIVE);
   const [updateAvailable, setUpdateAvailable] = useState(null);
+  const [showFriendActivity, setShowFriendActivity] = useState(false);
+  const [showJamSession, setShowJamSession] = useState(false);
+  const [showAIPlaylist, setShowAIPlaylist] = useState(false);
+  const [isPrivateListening, setIsPrivateListening] = useState(false);
   const audioQualityRef = useRef(audioQuality);
 
   const setAudioQuality = (q) => {
@@ -980,6 +988,10 @@ export default function App() {
             tweenVolume(newActiveAudio, volume, 400);
             // Reset consecutive skip counter — this track loaded successfully
             consecutiveSkipsRef.current = 0;
+            // Broadcast presence (Friend Activity)
+            if (userProfile?.displayName && userMode === 'shared' && !isPrivateListening) {
+              broadcastNowPlaying(userProfile.displayName, track, true).catch(() => {});
+            }
           }
         })
         .catch(err => {
@@ -1510,6 +1522,9 @@ export default function App() {
           onTracksImported={handleTracksImported}
           onRefreshLibrary={handleRefreshLibrary}
           isAdmin={isAdmin}
+          onToggleFriendActivity={() => setShowFriendActivity(prev => !prev)}
+          onToggleJamSession={() => setShowJamSession(prev => !prev)}
+          onToggleAIPlaylist={() => setShowAIPlaylist(prev => !prev)}
         />
         <MainView 
           currentTab={currentTab}
@@ -1589,6 +1604,37 @@ export default function App() {
         />
       )}
       <MobileBottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
+
+      {/* Friend Activity Panel */}
+      <FriendActivity isVisible={showFriendActivity} onClose={() => setShowFriendActivity(false)} />
+
+      {/* Jam Session Modal */}
+      <JamSession
+        isVisible={showJamSession}
+        onClose={() => setShowJamSession(false)}
+        currentTrack={currentTrack}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        onPlayTrack={handlePlayTrack}
+        username={userProfile?.displayName}
+      />
+
+      {/* AI Playlist Generator */}
+      <AIPlaylistModal
+        isVisible={showAIPlaylist}
+        onClose={() => setShowAIPlaylist(false)}
+        allTracks={displayTracks}
+        onCreatePlaylist={(name, trackIds) => {
+          handleCreatePlaylist(name, false, []);
+          setTimeout(() => {
+            const newPlaylist = playlists.find(p => p.name === name);
+            if (newPlaylist) {
+              trackIds.forEach(tid => handleAddToPlaylist(newPlaylist.id, tid));
+            }
+          }, 500);
+          setShowAIPlaylist(false);
+        }}
+      />
 
       {updateAvailable && (
         <div style={{

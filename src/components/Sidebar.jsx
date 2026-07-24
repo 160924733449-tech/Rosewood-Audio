@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic, Download, Settings } from 'lucide-react';
+import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic, Download, Settings, Users, Radio } from 'lucide-react';
 import { scanDirectory, triggerFileSelect } from '../utils/fileSystemHelper';
 import CloudinaryUpload from './CloudinaryUpload';
 import { uploadToCloudinary } from '../utils/storageCacheHelper';
@@ -16,7 +16,10 @@ export default function Sidebar({
   onLogout,
   onTracksImported,
   onRefreshLibrary,
-  isAdmin
+  isAdmin,
+  onToggleFriendActivity,
+  onToggleJamSession,
+  onToggleAIPlaylist
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -153,6 +156,28 @@ export default function Sidebar({
           <Settings size={18} />
           <span>Settings</span>
         </button>
+
+        {!isAdmin && userMode === 'shared' && (
+          <>
+            <div className="sidebar-divider" style={{ margin: '8px 0' }}></div>
+            <button
+              className="menu-item"
+              onClick={onToggleFriendActivity}
+              style={{ color: 'var(--accent-teal)' }}
+            >
+              <Users size={18} />
+              <span>Friends</span>
+            </button>
+            <button
+              className="menu-item"
+              onClick={onToggleJamSession}
+              style={{ color: 'var(--accent-coral)' }}
+            >
+              <Radio size={18} />
+              <span>Jam Session</span>
+            </button>
+          </>
+        )}
 
         {!isNative && (
           <a

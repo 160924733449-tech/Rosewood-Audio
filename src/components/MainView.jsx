@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Sparkles, Music, Play, Plus, Clock, Disc, FolderPlus, ListMusic, Edit2, Camera, MoreVertical, Download, LogOut, Settings, Trash2, RefreshCw, Shuffle, Image } from 'lucide-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { getRecommendations, getTopMatches } from '../utils/recommendationEngine';
+import { generateDaylist } from '../utils/aiFeatures';
 import { SkeletonTrackList } from './SkeletonTrack';
 import { useContextMenu } from './ContextMenu';
 import { triggerFileSelect } from '../utils/fileSystemHelper';
@@ -38,6 +39,7 @@ export default function MainView({
   expandPlayer
 }) {
   const [recommendations, setRecommendations] = useState({ dailyMix: [], similarTracks: [], forgottenGems: [] });
+  const [daylistTracks, setDaylistTracks] = useState([]);
   const [topMatches, setTopMatches] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [addedTrackId, setAddedTrackId] = useState(null);
@@ -966,6 +968,41 @@ export default function MainView({
                   </div>
                 </>
               )}
+
+              {/* Daylist - Time-Based Dynamic Mix */}
+              {(() => {
+                const hour = new Date().getHours();
+                const daylistData = generateDaylist(tracks, hour);
+                const timeLabel = hour >= 5 && hour < 12 ? '🌅 Morning Vibes' : hour >= 12 && hour < 17 ? '☀️ Afternoon Energy' : hour >= 17 && hour < 21 ? '🌆 Evening Chill' : '🌙 Night Mode';
+                if (daylistData.length === 0) return null;
+                return (
+                  <>
+                    <h3 style={{ fontSize: '15px', fontWeight: '700', margin: '28px 0 16px', color: 'var(--text-primary)' }}>{timeLabel} — Your Daylist</h3>
+                    <div className="dashboard-grid">
+                      {daylistData.slice(0, 6).map(t => (
+                        <div key={t.id} className="music-card glass hover-scale" onClick={() => onPlayTrack(t, daylistData)}>
+                          <div className="card-art-container">
+                            {t.artwork ? (
+                              <img src={t.artwork} className="card-art" alt="" loading="lazy" decoding="async" />
+                            ) : (
+                              <div className="card-placeholder-art">
+                                <Music size={32} />
+                              </div>
+                            )}
+                            <div className="card-play-overlay">
+                              <Play size={18} fill="#000" style={{ transform: 'translateX(1px)' }} />
+                            </div>
+                          </div>
+                          <div className="card-info">
+                            <h4>{t.title}</h4>
+                            <p>{t.artist}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </>
           )}
         </>
