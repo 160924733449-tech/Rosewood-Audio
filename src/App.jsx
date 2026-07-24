@@ -1071,7 +1071,7 @@ export default function App() {
       audioRef.current.play()
         .then(() => {
           setIsPlaying(true);
-          tweenVolume(audioRef.current, volume, isCrossfade ? 8000 : 300);
+          tweenVolume(audioRef.current, volume, 300);
         })
         .catch(err => console.error('Playback failed:', err));
     }
