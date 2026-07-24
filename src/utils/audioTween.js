@@ -19,7 +19,7 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
     
     if (diff === 0 || durationMs <= 0) {
       if (audio.gainNode) audio.gainNode.gain.value = Math.max(0, Math.min(1, targetVol));
-      else audio.volume = Math.max(0, Math.min(1, targetVol));
+      audio.volume = Math.max(0, Math.min(1, targetVol)); // ALWAYS set native volume
       return resolve();
     }
 
@@ -39,9 +39,8 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
       try {
         if (audio.gainNode) {
           audio.gainNode.gain.value = nextVol;
-        } else {
-          audio.volume = nextVol;
         }
+        audio.volume = nextVol; // ALWAYS set native volume
       } catch (e) {
         // Handle edge cases where audio element might be destroyed
         clearInterval(audio._tweenInterval);
@@ -52,7 +51,7 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
         clearInterval(audio._tweenInterval);
         try {
           if (audio.gainNode) audio.gainNode.gain.value = Math.max(0, Math.min(1, targetVol));
-          else audio.volume = Math.max(0, Math.min(1, targetVol));
+          audio.volume = Math.max(0, Math.min(1, targetVol));
         } catch(e){}
         resolve();
       }
