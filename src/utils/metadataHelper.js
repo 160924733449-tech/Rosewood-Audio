@@ -24,13 +24,13 @@ export function parseMetadata(file) {
     const jsmediatags = window.jsmediatags;
     if (!jsmediatags) {
       console.warn('jsmediatags is not loaded on window yet, using fallback.');
-      resolve(fallbackMetadata);
+      resolve(enrichQuranTrack({ ...fallbackMetadata, url: filename, name: filename }));
       return;
     }
 
     // If it's not a File or Blob, return fallback
     if (!(file instanceof Blob)) {
-      resolve(fallbackMetadata);
+      resolve(enrichQuranTrack({ ...fallbackMetadata, url: filename, name: filename }));
       return;
     }
 
@@ -52,18 +52,20 @@ export function parseMetadata(file) {
             }
           }
 
-          resolve({
+          resolve(enrichQuranTrack({
             title: tags.title || defaultTitle,
             artist: tags.artist || defaultArtist,
             album: tags.album || 'Unknown Album',
             genre: tags.genre || 'Unknown Genre',
             year: tags.year || '',
-            artwork
-          });
+            artwork,
+            url: filename,
+            name: filename
+          }));
         },
         onError: (error) => {
           console.warn('jsmediatags error reading file, using fallback:', error);
-          resolve(fallbackMetadata);
+          resolve(enrichQuranTrack({ ...fallbackMetadata, url: filename, name: filename }));
         }
       });
   });
@@ -133,6 +135,10 @@ export async function fetchITunesMetadata(artist, title) {
 }
 
 const GENRE_TAXONOMY = {
+  'Islamic / Quran': {
+    keywords: ['quran', 'qur\'an', 'islamic', 'surah', 'tilawat', 'recitation', 'nasheed', 'naat', 'adhan', 'azaan', 'mishary', 'sudais', 'shuraym', 'abdul basit', 'ghamid', 'husary', 'minshawi', 'alafasy', 'maher'],
+    artists: ['mishary', 'sudais', 'shuraym', 'abdul basit', 'ghamid', 'husary', 'minshawi', 'alafasy', 'maher zein', 'sami yusuf', 'native deen', 'ahmed bukhatir', 'zain bhikha', 'holy quran']
+  },
   'Bollywood': {
     keywords: ['bollywood', 'hindi', 'indian', 'desi', 'filmi'],
     artists: ['arijit', 'shreya', 'rahman', 'pritam', 'sonu nigam', 'kishore', 'lata', 'armaan', 'jubin', 'shankar', 'vishal', 'darshan']
@@ -208,3 +214,205 @@ export function normalizeGenre(rawGenre, artist = '', title = '') {
   
   return 'Global';
 }
+
+export const QURAN_SURAHS = {
+  1: { name: 'Al-Fatiha', english: 'The Opening' },
+  2: { name: 'Al-Baqarah', english: 'The Cow' },
+  3: { name: 'Ali \'Imran', english: 'Family of Imran' },
+  4: { name: 'An-Nisa', english: 'The Women' },
+  5: { name: 'Al-Ma\'idah', english: 'The Table Spread' },
+  6: { name: 'Al-An\'am', english: 'The Cattle' },
+  7: { name: 'Al-A\'raf', english: 'The Heights' },
+  8: { name: 'Al-Anfal', english: 'The Spoils of War' },
+  9: { name: 'At-Tawbah', english: 'The Repentance' },
+  10: { name: 'Yunus', english: 'Jonah' },
+  11: { name: 'Hud', english: 'Hud' },
+  12: { name: 'Yusuf', english: 'Joseph' },
+  13: { name: 'Ar-Ra\'d', english: 'The Thunder' },
+  14: { name: 'Ibrahim', english: 'Abraham' },
+  15: { name: 'Al-Hijr', english: 'The Rocky Tract' },
+  16: { name: 'An-Nahl', english: 'The Bee' },
+  17: { name: 'Al-Isra', english: 'The Night Journey' },
+  18: { name: 'Al-Kahf', english: 'The Cave' },
+  19: { name: 'Maryam', english: 'Mary' },
+  20: { name: 'Taha', english: 'Ta-Ha' },
+  21: { name: 'Al-Anbiya', english: 'The Prophets' },
+  22: { name: 'Al-Hajj', english: 'The Pilgrimage' },
+  23: { name: 'Al-Mu\'minun', english: 'The Believers' },
+  24: { name: 'An-Nur', english: 'The Light' },
+  25: { name: 'Al-Furqan', english: 'The Criterion' },
+  26: { name: 'Ash-Shu\'ara', english: 'The Poets' },
+  27: { name: 'An-Naml', english: 'The Ant' },
+  28: { name: 'Al-Qasas', english: 'The Stories' },
+  29: { name: 'Al-Ankabut', english: 'The Spider' },
+  30: { name: 'Ar-Rum', english: 'The Romans' },
+  31: { name: 'Luqman', english: 'Luqman' },
+  32: { name: 'As-Sajdah', english: 'The Prostration' },
+  33: { name: 'Al-Ahzab', english: 'The Combined Forces' },
+  34: { name: 'Saba', english: 'Sheba' },
+  35: { name: 'Fatir', english: 'Originator' },
+  36: { name: 'Ya-Sin', english: 'Ya Sin' },
+  37: { name: 'As-Saffat', english: 'Those who set the Ranks' },
+  38: { name: 'Sad', english: 'The Letter Sad' },
+  39: { name: 'Az-Zumar', english: 'The Troops' },
+  40: { name: 'Ghafir', english: 'The Forgiver' },
+  41: { name: 'Fussilat', english: 'Explained in Detail' },
+  42: { name: 'Ash-Shura', english: 'The Consultation' },
+  43: { name: 'Az-Zukhruf', english: 'The Ornaments of Gold' },
+  44: { name: 'Ad-Dukhan', english: 'The Smoke' },
+  45: { name: 'Al-Jathiyah', english: 'The Crouching' },
+  46: { name: 'Al-Ahqaf', english: 'The Wind-Curved Sandhills' },
+  47: { name: 'Muhammad', english: 'Muhammad' },
+  48: { name: 'Al-Fath', english: 'The Victory' },
+  49: { name: 'Al-Hujurat', english: 'The Rooms' },
+  50: { name: 'Qaf', english: 'The Letter Qaf' },
+  51: { name: 'Ad-Dhariyat', english: 'The Winnowing Winds' },
+  52: { name: 'At-Tur', english: 'The Mount' },
+  53: { name: 'An-Najm', english: 'The Star' },
+  54: { name: 'Al-Qamar', english: 'The Moon' },
+  55: { name: 'Ar-Rahman', english: 'The Beneficent' },
+  56: { name: 'Al-Waqi\'ah', english: 'The Inevitable' },
+  57: { name: 'Al-Hadid', english: 'The Iron' },
+  58: { name: 'Al-Mujadila', english: 'The Pleading Woman' },
+  59: { name: 'Al-Hashr', english: 'The Exile' },
+  60: { name: 'Al-Mumtahanah', english: 'She that is to be examined' },
+  61: { name: 'As-Saff', english: 'The Ranks' },
+  62: { name: 'Al-Jumu\'ah', english: 'The Congregation' },
+  63: { name: 'Al-Munafiqun', english: 'The Hypocrites' },
+  64: { name: 'At-Taghabun', english: 'The Mutual Disillusion' },
+  65: { name: 'At-Talaq', english: 'The Divorce' },
+  66: { name: 'At-Tahrim', english: 'The Prohibition' },
+  67: { name: 'Al-Mulk', english: 'The Sovereignty' },
+  68: { name: 'Al-Qalam', english: 'The Pen' },
+  69: { name: 'Al-Haqqah', english: 'The Reality' },
+  70: { name: 'Al-Ma\'arij', english: 'The Ascending Stairways' },
+  71: { name: 'Nuh', english: 'Noah' },
+  72: { name: 'Al-Jinn', english: 'The Jinn' },
+  73: { name: 'Al-Muzzammil', english: 'The Enshrouded One' },
+  74: { name: 'Al-Muddaththir', english: 'The Cloaked One' },
+  75: { name: 'Al-Qiyamah', english: 'The Resurrection' },
+  76: { name: 'Al-Insan', english: 'Man' },
+  77: { name: 'Al-Mursalat', english: 'The Emissaries' },
+  78: { name: 'An-Naba', english: 'The Tidings' },
+  79: { name: 'An-Nazi\'at', english: 'Those who drag forth' },
+  80: { name: 'Abasa', english: 'He Frowned' },
+  81: { name: 'At-Takwir', english: 'The Overthrowing' },
+  82: { name: 'Al-Infitar', english: 'The Cleaving' },
+  83: { name: 'Al-Mutaffifin', english: 'The Defrauding' },
+  84: { name: 'Al-Inshiqaq', english: 'The Sundering' },
+  85: { name: 'Al-Buruj', english: 'The Mansions of the Stars' },
+  86: { name: 'At-Tariq', english: 'The Morning Star' },
+  87: { name: 'Al-A\'la', english: 'The Most High' },
+  88: { name: 'Al-Ghashiyah', english: 'The Overwhelming' },
+  89: { name: 'Al-Fajr', english: 'The Dawn' },
+  90: { name: 'Al-Balad', english: 'The City' },
+  91: { name: 'Ash-Shams', english: 'The Sun' },
+  92: { name: 'Al-Layl', english: 'The Night' },
+  93: { name: 'Ad-Duha', english: 'The Morning Hours' },
+  94: { name: 'Ash-Sharh', english: 'The Relief' },
+  95: { name: 'At-Tin', english: 'The Fig' },
+  96: { name: 'Al-A\'laq', english: 'The Clot' },
+  97: { name: 'Al-Qadr', english: 'The Power' },
+  98: { name: 'Al-Bayyinah', english: 'The Clear Proof' },
+  99: { name: 'Az-Zalzalah', english: 'The Earthquake' },
+  100: { name: 'Al-Adiyat', english: 'The Courser' },
+  101: { name: 'Al-Qari\'ah', english: 'The Calamity' },
+  102: { name: 'At-Takathur', english: 'The Rivalry in Worldly Increase' },
+  103: { name: 'Al-Asr', english: 'The Declining Day' },
+  104: { name: 'Al-Humazah', english: 'The Traducer' },
+  105: { name: 'Al-Fil', english: 'The Elephant' },
+  106: { name: 'Quraysh', english: 'Quraysh' },
+  107: { name: 'Al-Ma\'un', english: 'The Small Kindness' },
+  108: { name: 'Al-Kawthar', english: 'The Abundance' },
+  109: { name: 'Al-Kafirun', english: 'The Disbelievers' },
+  110: { name: 'An-Nasr', english: 'The Divine Support' },
+  111: { name: 'Al-Masad', english: 'The Palm Fiber' },
+  112: { name: 'Al-Ikhlas', english: 'The Sincerity' },
+  113: { name: 'Al-Falaq', english: 'The Daybreak' },
+  114: { name: 'An-Nas', english: 'Mankind' }
+};
+
+export function enrichQuranTrack(track) {
+  if (!track || typeof track !== 'object') return track;
+
+  // Gather all possible text clues (title, name, id, url filename)
+  let clueText = `${track.title || ''} ${track.name || ''} ${track.id || ''}`.trim();
+  if (track.url) {
+    try {
+      const urlParts = track.url.split('/');
+      const lastPart = decodeURIComponent(urlParts[urlParts.length - 1] || '');
+      clueText += ` ${lastPart}`;
+    } catch {
+      // ignore
+    }
+  }
+
+  const titleTrimmed = String(track.title || '').trim();
+  const nameTrimmed = String(track.name || '').trim();
+  let surahNum = null;
+
+  // 1. Exact number check on title or name (e.g. "001", "1", "002", "114", "001.mp3", "002.mp3", "114.mp3")
+  const exactMatch = (titleTrimmed || nameTrimmed).match(/^0*([1-9]|[1-9]\d|10\d|11[0-4])(?:\.mp3|\.m4a|\.wav|\.flac)?$/i);
+  if (exactMatch) {
+    surahNum = parseInt(exactMatch[1], 10);
+  } else {
+    // 2. Check if candidate text matches padded numbers 001..114 followed by .mp3/_/- or boundary
+    const paddedMatch = clueText.match(/(?:^|\D)(00[1-9]|0[1-9]\d|10\d|11[0-4])(?:\.mp3|\.m4a|\.wav|\.flac|[_.-]|\s|$)/i);
+    if (paddedMatch) {
+      surahNum = parseInt(paddedMatch[1], 10);
+    } else {
+      // 3. Check for explicit keywords like "surah 1", "surah 001", "quran 114"
+      const keywordMatch = clueText.match(/(?:surah|sura|quran|qur'an|tilawat)\s*0*([1-9]|[1-9]\d|10\d|11[0-4])\b/i);
+      if (keywordMatch) {
+        surahNum = parseInt(keywordMatch[1], 10);
+      }
+    }
+  }
+
+  if (surahNum >= 1 && surahNum <= 114 && QURAN_SURAHS[surahNum]) {
+    const info = QURAN_SURAHS[surahNum];
+    const padded = String(surahNum).padStart(3, '0');
+    const expectedPrefix = `${padded}. Surah ${info.name}`;
+
+    // If not already formatted with the Surah prefix
+    if (!titleTrimmed.startsWith(expectedPrefix)) {
+      let newTitle = `${padded}. Surah ${info.name} (${info.english})`;
+      
+      // If original title had descriptive text that is not just the number or filename or surah name, preserve it
+      if (
+        titleTrimmed &&
+        !/^0*([1-9]|[1-9]\d|10\d|11[0-4])(?:\.mp3|\.m4a|\.wav|\.flac|[_.-].*)?$/i.test(titleTrimmed) &&
+        !titleTrimmed.toLowerCase().includes(info.name.toLowerCase()) &&
+        !titleTrimmed.toLowerCase().includes(info.english.toLowerCase())
+      ) {
+        newTitle = `${padded}. Surah ${info.name} - ${titleTrimmed}`;
+      }
+
+      const currentArtist = String(track.artist || '').trim();
+      const newArtist = (!currentArtist || currentArtist === 'Unknown Artist' || /^\d+$/.test(currentArtist))
+        ? 'Holy Quran Recitation'
+        : currentArtist;
+
+      const currentAlbum = String(track.album || '').trim();
+      const newAlbum = (!currentAlbum || currentAlbum === 'Unknown Album' || /^\d+$/.test(currentAlbum))
+        ? 'Al-Qur\'an Al-Kareem (The Holy Quran)'
+        : currentAlbum;
+
+      return {
+        ...track,
+        title: newTitle,
+        artist: newArtist,
+        album: newAlbum,
+        genre: 'Islamic / Quran'
+      };
+    }
+  }
+
+  return track;
+}
+
+export function enrichTrackList(tracks) {
+  if (!Array.isArray(tracks)) return tracks;
+  return tracks.map(track => enrichQuranTrack(track));
+}
+

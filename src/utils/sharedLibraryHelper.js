@@ -1,6 +1,7 @@
 import { db } from '../config/firebase';
-import { collection, getDocs, getDocsFromCache, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, getDocsFromCache, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { getAudioBlobFromIDB, saveAudioBlobToIDB, getAllCachedAudioIds } from './db';
+import { enrichQuranTrack, enrichTrackList } from './metadataHelper';
 
 // In-memory URL cache — eliminates repeated IDB reads for the same track.
 // Once a blob URL is created, subsequent calls resolve in microseconds.
@@ -93,7 +94,7 @@ export async function fetchSharedLibraryTracks() {
         tracks.push(data);
       }
     });
-    return tracks;
+    return enrichTrackList(tracks);
   };
 
   try {
@@ -106,12 +107,22 @@ export async function fetchSharedLibraryTracks() {
         const cachedTracks = parseDocs(cachedSnapshot);
         console.log(`[Library] Loaded ${cachedTracks.length} tracks from Firestore cache.`);
 
-        // 2. Silently refresh from server in the background and clean up old drive tracks
+        // 2. Silently refresh from server in the background, clean up old drive tracks, and self-heal Quran metadata
         getDocs(libraryRef).then(snapshot => {
           snapshot.forEach(d => {
             const data = d.data();
             if (data.source === 'shared' || !data.url) {
               deleteDoc(doc(db, 'libraryMetadata', d.id)).catch(() => {});
+            } else {
+              const enriched = enrichQuranTrack(data);
+              if (enriched && (enriched.title !== data.title || enriched.artist !== data.artist)) {
+                updateDoc(doc(db, 'libraryMetadata', d.id), {
+                  title: enriched.title,
+                  artist: enriched.artist,
+                  album: enriched.album,
+                  genre: enriched.genre
+                }).catch(() => {});
+              }
             }
           });
         }).catch(() => {});
@@ -125,11 +136,21 @@ export async function fetchSharedLibraryTracks() {
     // 3. Network fetch (first load or cache miss)
     const snapshot = await getDocs(libraryRef);
     if (!snapshot.empty) {
-      // Actively clean up dead Google Drive links from the database
+      // Actively clean up dead Google Drive links and self-heal Quran metadata in the database
       snapshot.forEach(d => {
         const data = d.data();
         if (data.source === 'shared' || !data.url) {
           deleteDoc(doc(db, 'libraryMetadata', d.id)).catch(() => {});
+        } else {
+          const enriched = enrichQuranTrack(data);
+          if (enriched && (enriched.title !== data.title || enriched.artist !== data.artist)) {
+            updateDoc(doc(db, 'libraryMetadata', d.id), {
+              title: enriched.title,
+              artist: enriched.artist,
+              album: enriched.album,
+              genre: enriched.genre
+            }).catch(() => {});
+          }
         }
       });
       return parseDocs(snapshot);

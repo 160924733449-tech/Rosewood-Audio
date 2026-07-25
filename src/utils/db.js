@@ -1,3 +1,5 @@
+import { enrichQuranTrack, enrichTrackList } from './metadataHelper';
+
 const DB_NAME = 'AuraPlayerDB';
 const DB_VERSION = 2;
 
@@ -185,10 +187,11 @@ export async function enforceCacheLimit(maxBytes = 250 * 1024 * 1024) {
 // Track operations
 export async function saveTrack(track) {
   const db = await openDB();
+  const enriched = enrichQuranTrack(track);
   return new Promise((resolve, reject) => {
     const tx = db.transaction('tracks', 'readwrite');
     const store = tx.objectStore('tracks');
-    const request = store.put(track);
+    const request = store.put(enriched);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
@@ -196,10 +199,11 @@ export async function saveTrack(track) {
 
 export async function saveTracks(tracks) {
   const db = await openDB();
+  const enrichedList = enrichTrackList(tracks);
   return new Promise((resolve, reject) => {
     const tx = db.transaction('tracks', 'readwrite');
     const store = tx.objectStore('tracks');
-    tracks.forEach(track => store.put(track));
+    enrichedList.forEach(track => store.put(track));
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -211,7 +215,16 @@ export async function getAllTracks() {
     const tx = db.transaction('tracks', 'readonly');
     const store = tx.objectStore('tracks');
     const request = store.getAll();
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const rawTracks = request.result || [];
+      const enriched = enrichTrackList(rawTracks);
+      // Self-heal: If any track was enriched in-memory, asynchronously update IDB
+      const changed = rawTracks.some((t, i) => t.title !== enriched[i]?.title || t.artist !== enriched[i]?.artist);
+      if (changed) {
+        setTimeout(() => saveTracks(enriched).catch(() => {}), 100);
+      }
+      resolve(enriched);
+    };
     request.onerror = () => reject(request.error);
   });
 }
