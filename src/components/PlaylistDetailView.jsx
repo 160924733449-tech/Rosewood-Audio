@@ -123,14 +123,14 @@ export default function PlaylistDetailView({
       )}
 
       {/* Playlist Hero Header */}
-      <div className="playlist-hero glass" style={{ display: 'flex', gap: '32px', padding: '32px', borderRadius: '24px', alignItems: 'flex-end', border: '1px solid var(--border-subtle)', background: 'linear-gradient(135deg, rgba(213, 28, 57, 0.15) 0%, rgba(20, 20, 25, 0.7) 100%)', flexWrap: 'wrap' }}>
+      <div className="playlist-hero glass" style={{ display: 'flex', gap: '32px', padding: '32px', borderRadius: '24px', alignItems: 'flex-end', border: '1px solid var(--border-subtle)', background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.18) 0%, rgba(15, 14, 12, 0.85) 100%)', flexWrap: 'wrap' }}>
         <div className="playlist-hero-art" style={{ width: '180px', height: '180px', borderRadius: '20px', overflow: 'hidden', flexShrink: 0, boxShadow: 'var(--shadow-xl)', border: '1px solid rgba(255,255,255,0.1)', background: 'var(--bg-deep)' }}>
           {renderHeroArt()}
         </div>
 
         <div className="playlist-hero-info" style={{ flex: 1, minWidth: '240px' }}>
           <span style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--accent-coral)' }}>Playlist</span>
-          <h1 style={{ fontSize: '38px', fontWeight: '900', margin: '8px 0 12px', color: 'var(--text-primary)', lineHeight: '1.1', wordBreak: 'break-word' }}>
+          <h1 style={{ fontSize: '38px', fontWeight: '900', margin: '8px 0 12px', color: 'var(--text-primary)', lineHeight: '1.1', wordBreak: 'break-word', fontFamily: 'var(--font-serif)' }}>
             {playlist.name || 'Untitled Playlist'}
           </h1>
           

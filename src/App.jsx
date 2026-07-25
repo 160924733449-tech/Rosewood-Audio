@@ -1316,7 +1316,7 @@ export default function App() {
         });
       }
     } else {
-      document.title = 'Reson8';
+      document.title = 'Kiswah Royal Audio';
     }
 
     // Dynamic theming
@@ -1324,18 +1324,18 @@ export default function App() {
       facRef.current.getColorAsync(currentTrack.artwork)
         .then(color => {
           const isDark = color.isDark;
-          const adjustedHex = isDark ? color.hex : '#D24A61'; // Fallback if too bright
+          const adjustedHex = isDark ? color.hex : '#d4af37'; // Fallback if too bright
           document.documentElement.style.setProperty('--accent-rose', adjustedHex);
           document.documentElement.style.setProperty('--bg-gradient-top', `rgba(${color.value[0]}, ${color.value[1]}, ${color.value[2]}, 0.15)`);
         })
         .catch(e => {
           console.warn('Failed to extract dominant color', e);
-          document.documentElement.style.setProperty('--accent-rose', '#D24A61');
-          document.documentElement.style.setProperty('--bg-gradient-top', 'rgba(25, 25, 25, 1)');
+          document.documentElement.style.setProperty('--accent-rose', '#d4af37');
+          document.documentElement.style.setProperty('--bg-gradient-top', 'rgba(15, 14, 12, 1)');
         });
     } else {
-      document.documentElement.style.setProperty('--accent-rose', '#D24A61');
-      document.documentElement.style.setProperty('--bg-gradient-top', 'rgba(25, 25, 25, 1)');
+      document.documentElement.style.setProperty('--accent-rose', '#d4af37');
+      document.documentElement.style.setProperty('--bg-gradient-top', 'rgba(15, 14, 12, 1)');
     }
 
   }, [currentTrack]);

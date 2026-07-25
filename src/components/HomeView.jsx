@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Sparkles, Music, Play, FolderPlus, RefreshCw, Radio, Compass, Disc, Clock } from 'lucide-react';
+import { Music, Play, FolderPlus, RefreshCw, Radio, Compass, Disc, Clock, Moon } from 'lucide-react';
 
 export default function HomeView({
   userProfile = null,
@@ -37,15 +37,15 @@ export default function HomeView({
       {/* Welcome Banner */}
       <div className="welcome-banner glass">
         <div className="welcome-banner-content">
-          <div className="welcome-subheading" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-coral)', fontWeight: '600', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
-            <Sparkles size={16} />
-            <span>Reson8 Acoustic Engine</span>
+          <div className="welcome-subheading" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-coral)', fontWeight: '700', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px', fontFamily: 'var(--font-serif)' }}>
+            <Moon size={16} />
+            <span>Kiswah Royal Audio Edition</span>
           </div>
-          <h1>
+          <h1 style={{ fontFamily: 'var(--font-serif)', letterSpacing: '0.5px' }}>
             {greeting}, <span className="gradient-text">{displayName}.</span>
           </h1>
-          <p style={{ maxWidth: '520px', marginTop: '6px' }}>
-            Your personal collection is ready — every frequency and rhythm, streamed with zero compression loss.
+          <p style={{ maxWidth: '520px', marginTop: '6px', color: 'var(--text-secondary)' }}>
+            Welcome to your serene acoustic sanctuary — inspired by the golden embroidery and deep dignity of the Kaaba Kiswah.
           </p>
 
           <div className="welcome-stats-row" style={{ display: 'flex', gap: '16px', marginTop: '20px', flexWrap: 'wrap' }}>
@@ -58,7 +58,7 @@ export default function HomeView({
               <span>{userMode.toUpperCase()} Mode</span>
             </div>
             {isOffline && (
-              <div className="welcome-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'rgba(213, 28, 57, 0.15)', borderRadius: '100px', border: '1px solid var(--accent-rose)', fontSize: '13px', color: 'var(--accent-rose)', fontWeight: '600' }}>
+              <div className="welcome-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'rgba(212, 175, 55, 0.15)', borderRadius: '100px', border: '1px solid var(--accent-rose)', fontSize: '13px', color: 'var(--accent-rose)', fontWeight: '600' }}>
                 <Clock size={16} />
                 <span>Offline Listening Active</span>
               </div>
@@ -67,7 +67,7 @@ export default function HomeView({
         </div>
 
         {/* Decorative background glow */}
-        <div className="welcome-banner-glow" style={{ position: 'absolute', top: '-50%', right: '-10%', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(213, 28, 57, 0.25) 0%, rgba(0,0,0,0) 70%)', filter: 'blur(50px)', pointerEvents: 'none', zIndex: 0 }} />
+        <div className="welcome-banner-glow" style={{ position: 'absolute', top: '-50%', right: '-10%', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(212, 175, 55, 0.22) 0%, rgba(0,0,0,0) 70%)', filter: 'blur(50px)', pointerEvents: 'none', zIndex: 0 }} />
       </div>
 
       {/* Empty / Offline Prompts */}

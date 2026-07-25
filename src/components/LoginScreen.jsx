@@ -96,16 +96,16 @@ export default function LoginScreen({ onLoginSuccess }) {
       <div className="login-brand-panel">
         <div className="brand-panel-inner">
           <div className="brand-lockup" style={{ gap: '24px' }}>
-            <img src="/icon.png" alt="Reson8 Logo" style={{ width: '72px', height: '72px', objectFit: 'contain', transform: 'scale(1.4)', marginLeft: '-8px' }} />
-            <span className="brand-wordmark" style={{ zIndex: 10 }}>Reson8</span>
+            <img src="/icon.png" alt="Kiswah Logo" style={{ width: '72px', height: '72px', objectFit: 'contain', transform: 'scale(1.4)', marginLeft: '-8px', filter: 'drop-shadow(0 0 12px rgba(212,175,55,0.6))' }} />
+            <span className="brand-wordmark gradient-text" style={{ zIndex: 10, fontFamily: 'var(--font-serif)', letterSpacing: '2px', fontWeight: '800' }}>Kiswah Audio</span>
           </div>
 
           <div className="brand-hero-text">
-            <h1>Your music.<br />Exactly as it<br />was recorded.</h1>
+            <h1 style={{ fontFamily: 'var(--font-serif)' }}>Sacred Acoustics.<br />Pure Resolution.<br />Timeless Serenity.</h1>
             <p>
+              Inspired by the golden embroidery of the Kaaba Kiswah.<br />
               No algorithms. No ads. No compression.<br />
-              Just your collection — in full resolution,<br />
-              exactly the way the artist intended.
+              Just your collection — in full royal fidelity.
             </p>
           </div>
 
@@ -172,7 +172,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               </div>
 
               <p className="auth-footnote">
-                Reson8 does not collect, sell, or process any of your personal data.
+                Kiswah Royal Audio does not collect, sell, or process any of your personal data.
               </p>
             </>
           )}

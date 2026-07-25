@@ -144,19 +144,19 @@ export default function SettingsView({
 
         {/* Mobile App APK Download */}
         {!isNative && (
-          <div className="settings-section-card glass" style={{ padding: '24px', borderRadius: '20px', border: '1px solid var(--border-subtle)', background: 'linear-gradient(135deg, rgba(213, 28, 57, 0.1) 0%, rgba(20,20,25,0.6) 100%)' }}>
+          <div className="settings-section-card glass" style={{ padding: '24px', borderRadius: '20px', border: '1px solid var(--border-subtle)', background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.12) 0%, rgba(20,20,25,0.6) 100%)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
               <Smartphone size={20} className="gradient-text" />
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Native Mobile App</h3>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', fontFamily: 'var(--font-serif)' }}>Native Mobile App</h3>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '18px', lineHeight: '1.5' }}>
-              Take Reson8 everywhere. Download the official standalone Android APK with background playback, offline caching, and lockscreen media controls.
+              Take Kiswah Royal Audio everywhere. Download the official standalone Android APK with background playback, offline caching, and lockscreen media controls.
             </p>
             <a 
               href="https://github.com/160924733449-tech/Rosewood-Audio/raw/main/public/reson8.apk" 
               download="reson8.apk"
               className="option-btn hover-scale" 
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px', background: 'var(--gradient-accent)', borderRadius: '14px', color: '#fff', textDecoration: 'none', fontWeight: '700', fontSize: '15px', boxShadow: 'var(--shadow-md)' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px', background: 'var(--gradient-accent)', borderRadius: '14px', color: '#050505', textDecoration: 'none', fontWeight: '800', fontSize: '15px', boxShadow: 'var(--shadow-md)' }}
             >
               <Download size={18} />
               <span>Download Standalone Android APK (.apk)</span>
@@ -197,7 +197,7 @@ export default function SettingsView({
             <button 
               className="option-btn hover-scale" 
               onClick={handleClearConfirm}
-              style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', background: 'rgba(213, 28, 57, 0.08)', border: '1px dashed var(--accent-rose)', borderRadius: '14px', cursor: 'pointer', color: 'var(--accent-rose)', fontWeight: '700', fontSize: '14px', marginTop: '8px', textAlign: 'left' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', background: 'rgba(212, 175, 55, 0.1)', border: '1px dashed var(--accent-rose)', borderRadius: '14px', cursor: 'pointer', color: 'var(--accent-rose)', fontWeight: '700', fontSize: '14px', marginTop: '8px', textAlign: 'left' }}
             >
               <Trash2 size={18} />
               <span>Clear Local Data, IndexedDB & Cache</span>

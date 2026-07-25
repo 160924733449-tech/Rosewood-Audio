@@ -106,8 +106,8 @@ export default function Sidebar({
         onClick={() => setCurrentTab(isAdmin ? 'library' : 'home')}
         style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '16px' }}
       >
-        <img src="/icon.png" alt="Reson8 Logo" className="logo-icon" style={{ width: '48px', height: '48px', objectFit: 'contain', transform: 'scale(1.5)' }} />
-        <h2>RESON8</h2>
+        <img src="/icon.png" alt="Kiswah Logo" className="logo-icon" style={{ width: '48px', height: '48px', objectFit: 'contain', transform: 'scale(1.5)', filter: 'drop-shadow(0 0 10px rgba(212, 175, 55, 0.5))' }} />
+        <h2 className="gradient-text" style={{ fontFamily: 'var(--font-serif)', letterSpacing: '1.5px', fontWeight: '800' }}>KISWAH AUDIO</h2>
       </button>
 
 
@@ -174,7 +174,7 @@ export default function Sidebar({
 
       {userMode === 'local' && (
         <div className="local-import-section" style={{ marginBottom: '24px' }}>
-          <button className="menu-item" onClick={handleSelectFolder} disabled={loading} style={{ background: 'rgba(213, 28, 57, 0.05)', color: 'var(--accent-deep)', border: '1px dashed var(--accent-rose)' }}>
+          <button className="menu-item" onClick={handleSelectFolder} disabled={loading} style={{ background: 'rgba(212, 175, 55, 0.08)', color: 'var(--accent-coral)', border: '1px dashed var(--accent-coral)' }}>
             <FolderPlus size={18} />
             <span>{loading ? 'Importing...' : isNative ? 'Scan Device for Music' : 'Select Music Folder'}</span>
           </button>
@@ -191,7 +191,7 @@ export default function Sidebar({
             } finally {
               setLoading(false);
             }
-          }} disabled={loading} style={{ background: 'rgba(213, 28, 57, 0.05)', color: 'var(--accent-deep)', border: '1px dashed var(--accent-rose)' }}>
+          }} disabled={loading} style={{ background: 'rgba(212, 175, 55, 0.08)', color: 'var(--accent-coral)', border: '1px dashed var(--accent-coral)' }}>
             <RefreshCw size={18} className={loading ? 'spin' : ''} />
             <span>{loading ? 'Refreshing...' : 'Refresh Shared Library'}</span>
           </button>

@@ -32,8 +32,8 @@ export default function SplashScreen() {
           <Music size={64} className="splash-icon" />
           <div className="splash-pulse"></div>
         </div>
-        <h1 className="splash-title">Rosewood</h1>
-        <p className="splash-subtitle">Syncing Library & Metadata...</p>
+        <h1 className="splash-title gradient-text" style={{ fontFamily: 'var(--font-serif)', letterSpacing: '2px', fontWeight: '800' }}>Kiswah Royal Audio</h1>
+        <p className="splash-subtitle">Entering the Sanctuary... Syncing Acoustics & Metadata...</p>
         
         <div className="splash-download-container">
           <div className="splash-download-stats">

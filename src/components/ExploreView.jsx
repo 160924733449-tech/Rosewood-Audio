@@ -70,15 +70,15 @@ export default function ExploreView({
   return (
     <div className="explore-view-container">
       {/* Hero Header */}
-      <div className="section-header glass" style={{ padding: '24px 32px', borderRadius: '24px', marginBottom: '32px', border: '1px solid var(--border-subtle)', background: 'linear-gradient(135deg, rgba(213, 28, 57, 0.1) 0%, rgba(20, 20, 25, 0.6) 100%)' }}>
+      <div className="section-header glass" style={{ padding: '24px 32px', borderRadius: '24px', marginBottom: '32px', border: '1px solid var(--border-subtle)', background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.12) 0%, rgba(20, 20, 25, 0.6) 100%)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-          <Sparkles size={26} className="gradient-text" style={{ filter: 'drop-shadow(0 0 8px rgba(213, 28, 57, 0.4))' }} />
-          <h1 style={{ fontSize: '32px', fontWeight: '800', margin: 0, letterSpacing: '-0.5px' }}>
+          <Sparkles size={26} className="gradient-text" style={{ filter: 'drop-shadow(0 0 8px rgba(212, 175, 55, 0.4))' }} />
+          <h1 style={{ fontSize: '32px', fontWeight: '800', margin: 0, letterSpacing: '-0.5px', fontFamily: 'var(--font-serif)' }}>
             Picked for You
           </h1>
         </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0, maxWidth: '500px' }}>
-          Reson8 listens to your acoustic taste quietly and refines these recommendations in real-time — no manual ratings or algorithmic noise required.
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0, maxWidth: '550px' }}>
+          Kiswah Royal Audio curates these acoustic reflections in serene tranquility — preserving pure, uncompressed fidelity and timeless grace without algorithmic noise.
         </p>
       </div>
 
