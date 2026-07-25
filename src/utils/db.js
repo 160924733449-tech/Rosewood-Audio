@@ -264,7 +264,7 @@ export async function deletePlaylist(id) {
 // History operations
 export async function logPlay(trackId, completed = false) {
   const db = await openDB();
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     const tx = db.transaction('history', 'readwrite');
     const store = tx.objectStore('history');
     const log = {
@@ -275,6 +275,39 @@ export async function logPlay(trackId, completed = false) {
     const request = store.add(log);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
+  });
+
+  // Prune history in background without blocking caller
+  setTimeout(() => pruneHistory().catch(() => {}), 0);
+}
+
+async function pruneHistory(maxEntries = 1000) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('history', 'readwrite');
+    const store = tx.objectStore('history');
+    const countReq = store.count();
+    countReq.onsuccess = () => {
+      const total = countReq.result;
+      if (total <= maxEntries) {
+        return resolve();
+      }
+      const toDelete = total - maxEntries;
+      let deleted = 0;
+      const cursorReq = store.openCursor();
+      cursorReq.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor && deleted < toDelete) {
+          cursor.delete();
+          deleted++;
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      cursorReq.onerror = () => reject(cursorReq.error);
+    };
+    countReq.onerror = () => reject(countReq.error);
   });
 }
 

@@ -90,8 +90,8 @@ export async function getRecommendations(allTracks) {
     }
   });
 
-  // Keep a set of recently played song IDs to strictly exclude (last 30% of total tracks up to 10)
-  const recentHistoryLimit = Math.max(1, Math.min(10, Math.floor(allTracks.length * 0.3)));
+  // Keep a set of recently played song IDs to strictly exclude (last 50% of total tracks up to 30)
+  const recentHistoryLimit = Math.max(5, Math.min(30, Math.floor(allTracks.length * 0.5)));
   const recentPlayedIds = new Set(
     history.slice(-recentHistoryLimit).map(h => h.trackId)
   );
@@ -180,7 +180,7 @@ export function getNextTrackAutoplayWithState(allTracks, currentTrack, history, 
     }
   });
 
-  const recentHistoryLimit = Math.max(1, Math.min(10, Math.floor(allTracks.length * 0.3)));
+  const recentHistoryLimit = Math.max(5, Math.min(30, Math.floor(allTracks.length * 0.5)));
   const recentPlayedIds = new Set(
     history.slice(-recentHistoryLimit).map(h => h.trackId)
   );
@@ -210,9 +210,19 @@ export function getNextTrackAutoplayWithState(allTracks, currentTrack, history, 
     score += artistAffinities[track.artist] || 0;
     score += genreAffinities[track.genre] || 0;
 
-    // Apply fatigue
+    // Apply fatigue from fatigueMap and recent play history
     const fatigue = fatigueMap[track.id] || 0;
-    score = Math.max(1, score - fatigue);
+
+    // Penalize tracks that appeared in recent history even if outside strict exclusion window
+    let historyPenalty = 0;
+    for (let idx = history.length - 1; idx >= Math.max(0, history.length - 100); idx--) {
+      if (history[idx].trackId === track.id) {
+        const distance = history.length - 1 - idx;
+        historyPenalty += 15 * Math.exp(-distance / 20);
+      }
+    }
+
+    score = Math.max(1, score - fatigue - historyPenalty);
 
     return { track, score };
   });

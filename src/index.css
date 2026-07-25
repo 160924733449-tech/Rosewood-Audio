@@ -1918,64 +1918,7 @@ body {
     cursor: pointer;
   }
 
-  /* Table adjustments for Mobile UX */
-  .track-table {
-    display: block;
-    width: 100%;
-  }
-
-  .track-table thead {
-    display: none;
-  }
-
-  .track-table tbody {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .track-row {
-    display: flex;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
-  }
-
-  .track-table td {
-    display: block;
-    padding: 0;
-    border: none !important;
-  }
-
-  /* Make Title and Artist column take full width */
-  .track-table td:nth-child(2) {
-    flex: 1;
-    width: 100%;
-    margin-left: 12px;
-  }
-
-  .track-table .track-number-cell {
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    flex-shrink: 0;
-  }
-
-  .track-table .track-album-cell,
-  .track-table .track-duration-cell {
-    display: none !important;
-  }
-
-  .track-table-title {
-    font-size: 15px;
-    font-weight: 600;
-  }
-
-  .track-table-artist {
-    font-size: 13px;
-  }
+  /* Removed hacky table-to-block conversion; mobile now uses dedicated .mobile-track-card components */
 
   .playlist-select-btn {
     min-width: unset !important;
@@ -3063,3 +3006,292 @@ body {
   object-fit: cover;
   filter: none !important;
 }
+
+/* ==========================================================================
+   MODERN APP COMPONENT STYLES (DESKTOP PREMIUM & MOBILE TOUCH-OPTIMIZED)
+   ========================================================================== */
+
+/* --- LibraryView & General Controls --- */
+.library-hero {
+  padding: 28px 32px;
+  border-radius: 24px;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(20, 20, 25, 0.7) 100%);
+  box-shadow: var(--shadow-lg);
+  margin-bottom: 24px;
+}
+
+.library-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.library-main-title {
+  font-size: 32px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px 0;
+  letter-spacing: -0.5px;
+}
+
+.library-stats-pills {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.library-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.filter-pill:hover {
+  border-color: var(--accent-coral) !important;
+  color: var(--text-primary) !important;
+}
+
+/* --- Floating Selection Bar --- */
+.floating-selection-bar {
+  position: sticky;
+  top: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  border-radius: 16px;
+  background: rgba(25, 25, 30, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--accent-coral);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(213, 28, 57, 0.2);
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.selection-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.selection-action-btn {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.selection-action-btn:hover {
+  background: var(--bg-surface-hover);
+}
+
+.bulk-playlist-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  width: 200px;
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-xl);
+  z-index: 100;
+}
+
+.bulk-playlist-item {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bulk-playlist-item:hover {
+  background: var(--bg-surface-hover);
+  color: var(--accent-coral);
+}
+
+/* --- Responsive Mobile Track Cards --- */
+.mobile-track-list-virtuoso {
+  width: 100%;
+}
+
+.mobile-track-card {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mobile-track-card:hover, .mobile-track-card:active {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.mobile-track-card.active-playing {
+  background: linear-gradient(90deg, rgba(213, 28, 57, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border-color: rgba(213, 28, 57, 0.3);
+}
+
+.mobile-track-card.selected {
+  background: rgba(213, 28, 57, 0.08);
+  border-color: var(--accent-coral);
+}
+
+.mobile-menu-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.mobile-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+}
+
+/* --- Premium Desktop Track Table --- */
+.premium-table tbody tr {
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.premium-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.premium-table tbody tr.active {
+  background: linear-gradient(90deg, rgba(213, 28, 57, 0.15) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+.table-art-thumb img {
+  transition: transform 0.3s ease;
+}
+
+.track-row:hover .table-art-thumb img {
+  transform: scale(1.08);
+}
+
+/* --- HomeView & ExploreView --- */
+.welcome-banner {
+  position: relative;
+  padding: 36px 40px;
+  border-radius: 28px;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(135deg, rgba(213, 28, 57, 0.15) 0%, rgba(20, 20, 28, 0.8) 100%);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+.welcome-banner h1 {
+  font-size: 36px;
+  font-weight: 900;
+  margin: 0;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+}
+
+.welcome-banner p {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* --- Mobile Responsive Breakpoints --- */
+@media (max-width: 768px) {
+  .library-hero {
+    padding: 20px;
+    border-radius: 20px;
+  }
+  
+  .library-main-title {
+    font-size: 26px;
+  }
+  
+  .welcome-banner {
+    padding: 24px;
+    border-radius: 22px;
+  }
+  
+  .welcome-banner h1 {
+    font-size: 28px;
+  }
+  
+  .library-controls-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .search-input-wrapper {
+    width: 100%;
+  }
+  
+  .library-filter-sort-group {
+    justify-content: space-between;
+    width: 100%;
+  }
+  
+  .floating-selection-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  .selection-actions {
+    justify-content: space-between;
+  }
+}
+

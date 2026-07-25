@@ -12,6 +12,7 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
     // Clear any existing tween interval to prevent fighting
     if (audio._tweenInterval) {
       clearInterval(audio._tweenInterval);
+      audio._tweenInterval = null;
     }
 
     const startVol = audio.gainNode ? audio.gainNode.gain.value : audio.volume;
@@ -44,11 +45,13 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
       } catch (e) {
         // Handle edge cases where audio element might be destroyed
         clearInterval(audio._tweenInterval);
+        audio._tweenInterval = null;
         resolve();
       }
 
       if (currentStep >= steps) {
         clearInterval(audio._tweenInterval);
+        audio._tweenInterval = null;
         try {
           if (audio.gainNode) audio.gainNode.gain.value = Math.max(0, Math.min(1, targetVol));
           audio.volume = Math.max(0, Math.min(1, targetVol));
@@ -57,4 +60,15 @@ export function tweenVolume(audio, targetVol, durationMs = 300) {
       }
     }, stepTime);
   });
+}
+
+/**
+ * Cancels any ongoing volume tween on the given audio element.
+ * @param {HTMLAudioElement} audio - The audio element
+ */
+export function cancelTween(audio) {
+  if (audio && audio._tweenInterval) {
+    clearInterval(audio._tweenInterval);
+    audio._tweenInterval = null;
+  }
 }

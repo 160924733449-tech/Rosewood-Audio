@@ -16,8 +16,8 @@ import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, get
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
 import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet, getGlobalPlaylists, saveGlobalPlaylist, deleteGlobalPlaylist } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
-import { fetchSharedLibraryTracks, getStreamUrlForTrack, warmStreamCache, deleteSharedTrack } from './utils/sharedLibraryHelper';
-import { tweenVolume } from './utils/audioTween';
+import { fetchSharedLibraryTracks, getStreamUrlForTrack, warmStreamCache, deleteSharedTrack, isStreamCached, isStreamCachedUrl } from './utils/sharedLibraryHelper';
+import { tweenVolume, cancelTween } from './utils/audioTween';
 import { FastAverageColor } from 'fast-average-color';
 import { MediaSession } from '@capgo/capacitor-media-session';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -152,19 +152,20 @@ export default function App() {
       let next = null;
       
       if (shuffle) {
-        // Exclude currently playing track and already queued tracks
-        const playedIds = new Set([currTrack?.id, ...upcoming.map(t=>t.id)]);
-        const unplayed = queue.filter(t => !playedIds.has(t.id));
-        
+        // Exclude currently playing track, already queued tracks, and recent session history
+        const sessionHistoryIds = playedHistory.slice(-Math.min(30, Math.floor(queue.length * 0.5))).map(t => t.id);
+        const playedIds = new Set([currTrack?.id, ...upcoming.map(t=>t.id), ...sessionHistoryIds]);
+        let unplayed = queue.filter(t => !playedIds.has(t.id));
+
+        // If we exhausted all unplayed tracks in the session, fall back to excluding just immediate upcoming and current
+        if (unplayed.length === 0) {
+          const minimalIds = new Set([currTrack?.id, ...upcoming.map(t=>t.id)]);
+          unplayed = queue.filter(t => !minimalIds.has(t.id));
+        }
+
         if (unplayed.length > 0) {
-          // Predictable pseudo-random seed to prevent the queue from rapidly changing on React re-renders
-          const seedStr = (current?.id || '') + queue.length + i;
-          let hash = 0;
-          for (let j = 0; j < seedStr.length; j++) {
-            hash = ((hash << 5) - hash) + seedStr.charCodeAt(j);
-            hash = hash & hash;
-          }
-          const randomIndex = Math.abs(hash) % unplayed.length;
+          // Randomized selection from unplayed candidates to prevent repeating 2-song loops
+          const randomIndex = Math.floor(Math.random() * unplayed.length);
           next = unplayed[randomIndex];
         }
       } else {
@@ -327,7 +328,7 @@ export default function App() {
           const isActiveSrc = audioElementsRef.current.some(el => el && el.src === url);
           // Keep old fallback for audioRef if needed
           const isLegacyActive = audioRef.current?.src === url;
-          if (url.startsWith('blob:') && !isActiveSrc && !isLegacyActive) {
+          if (url.startsWith('blob:') && !isActiveSrc && !isLegacyActive && !isStreamCached(id) && !isStreamCachedUrl(url)) {
             URL.revokeObjectURL(url);
           }
           delete preloadedUrlsRef.current[id];
@@ -832,18 +833,21 @@ export default function App() {
 
     upcomingTracksRef.current = []; // Clear cached upcoming tracks
     hasSmartCachedRef.current = false; // Reset smart cache flag for the new track
-    if (!isCrossfade) crossfadeTriggeredRef.current = false; // Reset crossfade trigger on manual play
+    crossfadeTriggeredRef.current = false; // Always reset crossfade trigger when starting a new track
 
     if (currentTrack) {
-      setPlayedHistory(prev => [...prev, currentTrack]);
+      setPlayedHistory(prev => [...prev, currentTrack].slice(-50));
     }
 
     // CRITICAL FIX: Immediately pause the current audio so it doesn't keep playing 
     // while we wait for the new track's network fetch to complete.
     if (audioElementsRef.current.length === 2 && !isCrossfade) {
-      audioElementsRef.current[activeIndexRef.current].pause();
+      const currentAudio = audioElementsRef.current[activeIndexRef.current];
+      cancelTween(currentAudio);
+      currentAudio.pause();
     } else if (isCrossfade && audioElementsRef.current.length === 2) {
       const fadingOutAudio = audioElementsRef.current[activeIndexRef.current];
+      cancelTween(fadingOutAudio);
       // Start fading out the old track over 8 seconds
       tweenVolume(fadingOutAudio, 0, 8000).then(() => {
         fadingOutAudio.pause();
@@ -968,14 +972,18 @@ export default function App() {
     const oldActiveAudio = audioElementsRef.current[activeIndexRef.current];
     activeIndexRef.current = 1 - activeIndexRef.current;
     const newActiveAudio = audioElementsRef.current[activeIndexRef.current];
+    cancelTween(newActiveAudio);
     
     // Update legacy ref
     audioRef.current = newActiveAudio;
 
     const doCleanup = (audioEl, oldUrl) => {
+      cancelTween(audioEl);
       if (oldUrl && oldUrl.startsWith('blob:') && oldUrl !== playUrl) {
         const isCached = Object.values(preloadedUrlsRef.current).includes(oldUrl);
-        if (!isCached && newActiveAudio.src !== oldUrl) {
+        const oldTrackId = audioEl.getAttribute('data-track-id');
+        const inStreamCache = (oldTrackId && isStreamCached(oldTrackId)) || isStreamCachedUrl(oldUrl);
+        if (!isCached && newActiveAudio.src !== oldUrl && !inStreamCache) {
           URL.revokeObjectURL(oldUrl);
         }
       }

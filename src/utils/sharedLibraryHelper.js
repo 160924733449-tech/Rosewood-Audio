@@ -4,7 +4,40 @@ import { getAudioBlobFromIDB, saveAudioBlobToIDB, getAllCachedAudioIds } from '.
 
 // In-memory URL cache — eliminates repeated IDB reads for the same track.
 // Once a blob URL is created, subsequent calls resolve in microseconds.
+// Capped at 15 items using LRU eviction to prevent memory bloat over extended listening sessions.
+const MAX_STREAM_CACHE_SIZE = 15;
 const streamUrlCache = new Map();
+
+function setStreamCache(id, value) {
+  if (streamUrlCache.has(id)) {
+    streamUrlCache.delete(id);
+  }
+  streamUrlCache.set(id, value);
+
+  if (streamUrlCache.size > MAX_STREAM_CACHE_SIZE) {
+    const oldestKey = streamUrlCache.keys().next().value;
+    const oldestVal = streamUrlCache.get(oldestKey);
+    if (oldestVal && oldestVal.blobUrl && oldestVal.blobUrl.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(oldestVal.blobUrl);
+      } catch (e) {}
+    }
+    streamUrlCache.delete(oldestKey);
+    console.log(`[StreamCache] Evicted LRU track ${oldestKey} and revoked blob URL.`);
+  }
+}
+
+export function isStreamCached(trackId) {
+  return streamUrlCache.has(trackId);
+}
+
+export function isStreamCachedUrl(url) {
+  if (!url) return false;
+  for (const val of streamUrlCache.values()) {
+    if (val.blobUrl === url) return true;
+  }
+  return false;
+}
 
 /**
  * Pre-warms the in-memory cache on app boot.
@@ -17,8 +50,8 @@ export async function warmStreamCache() {
     const cachedIds = await getAllCachedAudioIds();
     if (!cachedIds || cachedIds.size === 0) return;
 
-    // Pre-load blobs in parallel (capped at 5 concurrent to avoid memory pressure)
-    const ids = [...cachedIds];
+    // Pre-load blobs in parallel (capped at MAX_STREAM_CACHE_SIZE to avoid memory pressure)
+    const ids = [...cachedIds].slice(0, MAX_STREAM_CACHE_SIZE);
     const BATCH_SIZE = 5;
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
       const batch = ids.slice(i, i + BATCH_SIZE);
@@ -28,7 +61,7 @@ export async function warmStreamCache() {
           try {
             const localCache = await getAudioBlobFromIDB(id);
             if (localCache && localCache.blob) {
-              streamUrlCache.set(id, {
+              setStreamCache(id, {
                 blobUrl: URL.createObjectURL(localCache.blob),
                 artworkUrl: null,
                 blob: localCache.blob,
@@ -137,8 +170,12 @@ export async function getStreamUrlForTrack(track, abortSignal = null) {
 
   // 0. Check in-memory cache — resolves in microseconds
   if (streamUrlCache.has(track.id)) {
+    const cached = streamUrlCache.get(track.id);
+    // Refresh LRU position by deleting and re-setting
+    streamUrlCache.delete(track.id);
+    streamUrlCache.set(track.id, cached);
     console.log(`[Stream] MEMORY CACHE HIT for ${track.name || track.title}. Instant playback.`);
-    return streamUrlCache.get(track.id);
+    return cached;
   }
 
   // 1. Check Local IDB Cache with a tight 150ms timeout.
@@ -159,7 +196,7 @@ export async function getStreamUrlForTrack(track, abortSignal = null) {
         isPreview: false,
       };
       // Store in memory so next access is instant
-      streamUrlCache.set(track.id, result);
+      setStreamCache(track.id, result);
       return result;
     }
   } catch (err) {
