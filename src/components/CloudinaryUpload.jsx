@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { parseMetadata } from '../utils/metadataHelper';
+import { parseMetadata, enrichQuranTrack } from '../utils/metadataHelper';
 import { db } from '../config/firebase';
 import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
 
@@ -11,6 +11,9 @@ export default function CloudinaryUpload({ onUploadComplete }) {
   const [chunkProgress, setChunkProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState(''); // '', 'success', 'error'
   const [statusMessage, setStatusMessage] = useState('');
+  const [showDirectInput, setShowDirectInput] = useState(false);
+  const [directUrl, setDirectUrl] = useState('');
+  const [directName, setDirectName] = useState('002.mp3');
   
   const fileInputRef = useRef(null);
   
@@ -208,6 +211,49 @@ export default function CloudinaryUpload({ onUploadComplete }) {
     }
   };
 
+  const handleAddDirectUrl = async (e) => {
+    e.preventDefault();
+    if (!directUrl || !directName) return;
+    setIsUploading(true);
+    setStatusMessage(`[LINKING] ${directName}...`);
+    try {
+      const cleanName = directName.replace(/\.[^/.]+$/, "");
+      let tags = { title: cleanName, artist: "Holy Quran Recitation", album: "Al-Qur'an Al-Kareem (The Holy Quran)", genre: "Islamic / Quran" };
+      
+      const enriched = enrichQuranTrack({
+        id: `cloudinary:direct_${Date.now()}`,
+        name: directName,
+        title: tags.title,
+        artist: tags.artist,
+        album: tags.album,
+        genre: tags.genre,
+        year: '',
+        size: 110000000,
+        mime: 'audio/mpeg',
+        source: 'cloudinary',
+        url: directUrl.trim(),
+        artwork: null,
+        createdAt: Date.now()
+      });
+
+      const trackRef = doc(db, 'libraryMetadata', enriched.id);
+      await setDoc(trackRef, enriched);
+      
+      setStatusMessage(`Successfully linked ${enriched.title}!`);
+      setUploadStatus('success');
+      setDirectUrl('');
+      setDirectName('002.mp3');
+      setShowDirectInput(false);
+      if (onUploadComplete) onUploadComplete();
+    } catch (err) {
+      console.error('Failed to add direct link:', err);
+      setStatusMessage(`Error linking track: ${err.message}`);
+      setUploadStatus('error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="cloudinary-upload-container">
       <input 
@@ -237,6 +283,62 @@ export default function CloudinaryUpload({ onUploadComplete }) {
       >
         <span>{isUploading ? 'SYS.UPLOADING...' : 'INITIATE UPLOAD'}</span>
       </button>
+      
+      <button 
+        type="button"
+        className="menu-item" 
+        onClick={() => setShowDirectInput(!showDirectInput)} 
+        disabled={isUploading}
+        style={{ 
+          background: showDirectInput ? 'var(--gold-primary, #d4af37)' : 'transparent', 
+          color: showDirectInput ? '#000' : 'var(--gold-primary, #d4af37)', 
+          border: '1px solid var(--gold-primary, #d4af37)',
+          fontFamily: 'monospace',
+          fontWeight: 'bold',
+          borderRadius: 0,
+          textTransform: 'uppercase',
+          justifyContent: 'center',
+          cursor: isUploading ? 'not-allowed' : 'pointer',
+          marginTop: '6px',
+          fontSize: '11px',
+          padding: '6px'
+        }}
+      >
+        <span>{showDirectInput ? '[-] CANCEL DIRECT LINK' : '[+] ADD DIRECT URL (>100MB FILE)'}</span>
+      </button>
+
+      {showDirectInput && (
+        <form onSubmit={handleAddDirectUrl} style={{ marginTop: '8px', padding: '10px', border: '1px solid var(--gold-primary, #d4af37)', background: 'rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
+          <div style={{ fontSize: '11px', color: 'var(--gold-primary, #d4af37)', fontFamily: 'monospace', lineHeight: '1.4' }}>
+            <strong>HOW TO LINK &gt;100MB SURAHS:</strong><br />
+            1. Upload <code>002.mp3</code> in your <a href="https://console.cloudinary.com/console/media_library" target="_blank" rel="noreferrer" style={{ color: '#fff', textDecoration: 'underline' }}>Cloudinary Dashboard</a> (bypasses 100MB limit).<br />
+            2. Copy the Secure URL & paste below:
+          </div>
+          <input 
+            type="text"
+            placeholder="Paste Cloudinary/Direct Audio URL (https://...)" 
+            value={directUrl}
+            onChange={(e) => setDirectUrl(e.target.value)}
+            required
+            style={{ padding: '6px', background: '#111', border: '1px solid #444', color: '#fff', fontSize: '11px', fontFamily: 'monospace' }}
+          />
+          <input 
+            type="text"
+            placeholder="Filename (e.g. 002.mp3 or Surah Al-Baqarah)" 
+            value={directName}
+            onChange={(e) => setDirectName(e.target.value)}
+            required
+            style={{ padding: '6px', background: '#111', border: '1px solid #444', color: '#fff', fontSize: '11px', fontFamily: 'monospace' }}
+          />
+          <button 
+            type="submit" 
+            disabled={isUploading}
+            style={{ background: 'var(--gold-primary, #d4af37)', color: '#000', border: 'none', padding: '8px', fontWeight: 'bold', fontFamily: 'monospace', cursor: 'pointer', textTransform: 'uppercase' }}
+          >
+            LINK TO KISWAH LIBRARY
+          </button>
+        </form>
+      )}
       
       {isUploading && (
         <div style={{ marginTop: '8px', border: '2px solid #000', background: '#fff', padding: '8px', fontFamily: 'monospace', color: '#000' }}>
