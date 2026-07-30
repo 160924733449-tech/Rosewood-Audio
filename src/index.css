@@ -30,6 +30,33 @@
   --glass-border: rgba(212, 175, 55, 0.22);
 }
 
+.theme-rosewood {
+  --bg-deep: #0a0a0a;         /* Deep Black */
+  --bg-base: #111111;         /* Dark Black */
+  --bg-surface: #1a1518;      /* Slight pinkish tint on dark surface */
+  --bg-surface-hover: #261c22;
+  --border-subtle: rgba(255, 105, 180, 0.2); /* Soft Pink border */
+  
+  --text-primary: #ffffff;    /* White */
+  --text-secondary: #ffb6c1;  /* Light Pink */
+  --text-muted: #a08c96;      /* Muted Pinkish gray */
+  
+  --accent-deep: #c71585;     /* Medium Violet Red */
+  --accent-rose: #ff69b4;     /* Hot Pink */
+  --accent-coral: #ff1493;    /* Deep Pink */
+  --accent-rgb: 255, 105, 180; /* Hot Pink RGB */
+  
+  --gradient-accent: linear-gradient(135deg, #ffb6c1 0%, #ff69b4 50%, #c71585 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(255, 105, 180, 0.2) 0%, rgba(10, 10, 10, 0.95) 100%);
+  
+  --shadow-sm: 0 4px 12px -2px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 105, 180, 0.1);
+  --shadow-lg: 0 16px 48px -12px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 105, 180, 0.2);
+  --shadow-glow: 0 8px 30px rgba(255, 105, 180, 0.3);
+  
+  --glass-bg: rgba(26, 21, 24, 0.82);
+  --glass-border: rgba(255, 105, 180, 0.22);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

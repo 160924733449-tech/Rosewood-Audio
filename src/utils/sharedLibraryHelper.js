@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, getDocs, getDocsFromCache, deleteDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, getDocsFromCache, deleteDoc, updateDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { getAudioBlobFromIDB, saveAudioBlobToIDB, getAllCachedAudioIds } from './db';
 import { enrichQuranTrack, enrichTrackList } from './metadataHelper';
 
@@ -80,18 +80,64 @@ export async function warmStreamCache() {
 }
 
 /**
+ * User Permissions Management
+ */
+export async function checkUserPrivateAccess(username) {
+  if (!username) return false;
+  try {
+    const docRef = doc(db, 'userPermissions', username.toLowerCase());
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists() && docSnap.data().hasPrivateAccess) {
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error("Failed to check user permissions:", err);
+    return false;
+  }
+}
+
+export async function grantPrivateAccess(username) {
+  if (!username) return false;
+  try {
+    const docRef = doc(db, 'userPermissions', username.toLowerCase());
+    await setDoc(docRef, { hasPrivateAccess: true, grantedAt: Date.now() }, { merge: true });
+    return true;
+  } catch (err) {
+    console.error("Failed to grant private access:", err);
+    return false;
+  }
+}
+
+export async function revokePrivateAccess(username) {
+  if (!username) return false;
+  try {
+    const docRef = doc(db, 'userPermissions', username.toLowerCase());
+    await setDoc(docRef, { hasPrivateAccess: false, revokedAt: Date.now() }, { merge: true });
+    return true;
+  } catch (err) {
+    console.error("Failed to revoke private access:", err);
+    return false;
+  }
+}
+
+/**
  * Fetches the list of audio files from the shared library.
  * Tries Firestore cache first for instant offline-first load,
  * then silently refreshes from server.
+ * Filters by appMode ('public' or 'private').
  */
-export async function fetchSharedLibraryTracks() {
+export async function fetchSharedLibraryTracks(appMode = 'public') {
   const parseDocs = (snapshot) => {
     const tracks = [];
     snapshot.forEach(d => {
       const data = d.data();
-      // Only keep Cloudinary tracks
+      // Only keep Cloudinary tracks that match the requested folder mode
       if (data.source === 'cloudinary' && data.url) {
-        tracks.push(data);
+        const trackFolder = data.folder === 'private' ? 'private' : 'public';
+        if (trackFolder === appMode) {
+          tracks.push(data);
+        }
       }
     });
     return enrichTrackList(tracks);

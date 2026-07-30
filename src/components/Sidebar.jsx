@@ -3,6 +3,7 @@ import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListM
 import { scanDirectory, triggerFileSelect } from '../utils/fileSystemHelper';
 import CloudinaryUpload from './CloudinaryUpload';
 import { uploadToCloudinary } from '../utils/storageCacheHelper';
+import { grantPrivateAccess, revokePrivateAccess } from '../utils/sharedLibraryHelper';
 
 export default function Sidebar({
   currentTab,
@@ -19,9 +20,14 @@ export default function Sidebar({
   isAdmin,
   onToggleFriendActivity,
   onToggleJamSession,
-  onToggleAIPlaylist
+  onToggleAIPlaylist,
+  hasPrivateAccess,
+  appMode,
+  setAppMode
 }) {
   const [loading, setLoading] = useState(false);
+  const [adminManageUser, setAdminManageUser] = useState('');
+  const [adminManageStatus, setAdminManageStatus] = useState('');
 
   const handleSelectFolder = async () => {
     try {
@@ -157,7 +163,18 @@ export default function Sidebar({
           <span>Settings</span>
         </button>
 
-
+        {hasPrivateAccess && (
+          <button
+            className="menu-item"
+            style={{ marginTop: 'auto', border: appMode === 'private' ? '1px solid var(--accent-rose)' : '1px dashed var(--accent-coral)' }}
+            onClick={() => setAppMode(appMode === 'public' ? 'private' : 'public')}
+          >
+            <Sparkles size={18} color={appMode === 'private' ? 'var(--accent-rose)' : 'var(--text-secondary)'} />
+            <span style={{ color: appMode === 'private' ? 'var(--accent-rose)' : 'var(--text-secondary)' }}>
+              {appMode === 'public' ? 'Switch Mode' : 'Switch Mode'}
+            </span>
+          </button>
+        )}
 
         {!isNative && (
           <a
@@ -183,7 +200,43 @@ export default function Sidebar({
 
       {userMode === 'shared' && (
         <div className="local-import-section" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {isAdmin && <CloudinaryUpload onUploadComplete={onRefreshLibrary} />}
+          {isAdmin && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px', marginBottom: '4px' }}>
+              <CloudinaryUpload onUploadComplete={onRefreshLibrary} />
+              
+              <div style={{ padding: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', color: 'var(--text-secondary)' }}>MANAGE SECRET ACCESS (ADMIN)</div>
+                <input 
+                  type="text" 
+                  placeholder="Username" 
+                  value={adminManageUser}
+                  onChange={(e) => setAdminManageUser(e.target.value)}
+                  style={{ width: '100%', padding: '6px', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: '11px', marginBottom: '6px' }}
+                />
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button 
+                    style={{ flex: 1, padding: '4px', fontSize: '10px', background: 'var(--accent-coral)', color: '#000', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                    onClick={async () => {
+                      setAdminManageStatus('Granting...');
+                      const ok = await grantPrivateAccess(adminManageUser);
+                      setAdminManageStatus(ok ? 'Granted!' : 'Error');
+                      setTimeout(() => setAdminManageStatus(''), 2000);
+                    }}
+                  >GRANT</button>
+                  <button 
+                    style={{ flex: 1, padding: '4px', fontSize: '10px', background: '#333', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                    onClick={async () => {
+                      setAdminManageStatus('Revoking...');
+                      const ok = await revokePrivateAccess(adminManageUser);
+                      setAdminManageStatus(ok ? 'Revoked!' : 'Error');
+                      setTimeout(() => setAdminManageStatus(''), 2000);
+                    }}
+                  >REVOKE</button>
+                </div>
+                {adminManageStatus && <div style={{ fontSize: '10px', marginTop: '4px', color: 'var(--accent-rose)' }}>{adminManageStatus}</div>}
+              </div>
+            </div>
+          )}
           <button className="menu-item" onClick={async () => {
             try {
               setLoading(true);

@@ -14,6 +14,7 @@ export default function CloudinaryUpload({ onUploadComplete }) {
   const [showDirectInput, setShowDirectInput] = useState(false);
   const [directUrl, setDirectUrl] = useState('');
   const [directName, setDirectName] = useState('002.mp3');
+  const [isPrivateUpload, setIsPrivateUpload] = useState(false);
   
   const fileInputRef = useRef(null);
   
@@ -181,6 +182,7 @@ export default function CloudinaryUpload({ onUploadComplete }) {
           url: secureUrl, // Direct streaming URL
           artwork: finalArtworkUrl,
           createdAt: Date.now(),
+          folder: isPrivateUpload ? 'private' : 'public'
         };
         
         const trackRef = doc(db, 'libraryMetadata', trackId);
@@ -233,7 +235,8 @@ export default function CloudinaryUpload({ onUploadComplete }) {
         source: 'cloudinary',
         url: directUrl.trim(),
         artwork: null,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        folder: isPrivateUpload ? 'private' : 'public'
       });
 
       const trackRef = doc(db, 'libraryMetadata', enriched.id);
@@ -256,6 +259,15 @@ export default function CloudinaryUpload({ onUploadComplete }) {
 
   return (
     <div className="cloudinary-upload-container">
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+        <input 
+          type="checkbox" 
+          checked={isPrivateUpload} 
+          onChange={(e) => setIsPrivateUpload(e.target.checked)} 
+        />
+        Upload to Secret Private Folder (Pink Theme)
+      </label>
+
       <input 
         type="file" 
         ref={fileInputRef} 

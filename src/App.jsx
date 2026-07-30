@@ -16,7 +16,7 @@ import { getAllTracks, saveTracks, saveTrack, getAllPlaylists, savePlaylist, get
 import { recordPlayEvent, decayFatigue, getNextTrackAutoplayWithState } from './utils/recommendationEngine';
 import { saveUserStateInSheet, getUserStateFromSheet, savePlaylistToSheet, appendHistoryToSheet, getAllPlaylistsFromSheet, getAllAffinitiesFromSheet, getGlobalPlaylists, saveGlobalPlaylist, deleteGlobalPlaylist } from './utils/googleSheetsHelper';
 import { saveAffinity, getPlayHistory, getAllAffinities } from './utils/db';
-import { fetchSharedLibraryTracks, getStreamUrlForTrack, warmStreamCache, deleteSharedTrack, isStreamCached, isStreamCachedUrl } from './utils/sharedLibraryHelper';
+import { fetchSharedLibraryTracks, getStreamUrlForTrack, warmStreamCache, deleteSharedTrack, isStreamCached, isStreamCachedUrl, checkUserPrivateAccess } from './utils/sharedLibraryHelper';
 import { tweenVolume, cancelTween } from './utils/audioTween';
 import { FastAverageColor } from 'fast-average-color';
 import { MediaSession } from '@capgo/capacitor-media-session';
@@ -59,6 +59,25 @@ export default function App() {
   const [showFriendActivity, setShowFriendActivity] = useState(false);
   const [showJamSession, setShowJamSession] = useState(false);
   const [showAIPlaylist, setShowAIPlaylist] = useState(false);
+
+  // Stealth Mode State
+  const [hasPrivateAccess, setHasPrivateAccess] = useState(false);
+  const [appMode, setAppMode] = useState(localStorage.getItem('aura_app_mode') || 'public');
+
+  useEffect(() => {
+    if (appMode === 'private') {
+      document.body.classList.add('theme-rosewood');
+    } else {
+      document.body.classList.remove('theme-rosewood');
+    }
+  }, [appMode]);
+
+  useEffect(() => {
+    if (loggedIn && userMode === 'shared') {
+      handleRefreshLibrary();
+    }
+  }, [appMode]);
+
   const [isPrivateListening, setIsPrivateListening] = useState(false);
   const audioQualityRef = useRef(audioQuality);
 
@@ -636,7 +655,6 @@ export default function App() {
 
 
   // Load local data if in Local Mode
-// Load local data if in Local Mode
   useEffect(() => {
     if (loggedIn && userMode === 'local') {
       loadLocalData();
@@ -677,10 +695,23 @@ export default function App() {
 
     if (authData.mode === 'shared') {
       setIsFetchingLibrary(true);
+      
+      const username = authData.user.displayName;
+      const isAdminUser = adminUsernames.includes(username.toLowerCase());
+      
+      // Check for stealth mode access
+      const hasAccess = isAdminUser || await checkUserPrivateAccess(username);
+      setHasPrivateAccess(hasAccess);
+      
+      const currentAppMode = hasAccess ? appMode : 'public';
+      if (!hasAccess && appMode !== 'public') {
+        setAppMode('public');
+        localStorage.setItem('aura_app_mode', 'public');
+      }
 
       // 1. Fetch Cloudinary tracklist + local IDB tracks in parallel (saves ~200-400ms)
       const [sharedTracks, existingTracks] = await Promise.all([
-        fetchSharedLibraryTracks(),
+        fetchSharedLibraryTracks(currentAppMode),
         getAllTracks(),
       ]);
       const existingMap = new Map(existingTracks.map(t => [t.id, t]));
@@ -693,8 +724,6 @@ export default function App() {
         return fetched;
       });
       setTracks(mergedTracks);
-
-      const username = authData.user.displayName;
 
       // 2. Fetch all cloud user data in parallel (saves ~500-1500ms vs sequential)
       const [state, cloudPlaylists, globalPlaylists, cloudAffinities] = await Promise.all([
@@ -729,8 +758,7 @@ export default function App() {
 
       if (combinedPlaylists.length > 0) {
         // Sync legacy admin playlists to global
-        const adminNames = (import.meta.env.VITE_ADMIN_USERNAMES || '').split(',').map(u => u.trim().toLowerCase());
-        const isUserAdmin = adminNames.includes(username.toLowerCase());
+        const isUserAdmin = adminUsernames.includes(username.toLowerCase());
         
         if (isUserAdmin) {
           combinedPlaylists.forEach(pl => {
@@ -801,8 +829,8 @@ export default function App() {
     if (userMode === 'shared') {
       setLoadingTrack(true);
       try {
-        const sharedTracks = await fetchSharedLibraryTracks();
-        if (sharedTracks && sharedTracks.length > 0) {
+        const sharedTracks = await fetchSharedLibraryTracks(appMode);
+        if (sharedTracks) {
           setTracks(prevTracks => {
             const prevMap = new Map(prevTracks.map(t => [t.id, t]));
             return sharedTracks.map(fetched => {
@@ -1569,6 +1597,12 @@ export default function App() {
           onToggleFriendActivity={() => setShowFriendActivity(prev => !prev)}
           onToggleJamSession={() => setShowJamSession(prev => !prev)}
           onToggleAIPlaylist={() => setShowAIPlaylist(prev => !prev)}
+          hasPrivateAccess={hasPrivateAccess}
+          appMode={appMode}
+          setAppMode={(mode) => {
+            setAppMode(mode);
+            localStorage.setItem('aura_app_mode', mode);
+          }}
         />
         <MainView 
           currentTab={currentTab}
