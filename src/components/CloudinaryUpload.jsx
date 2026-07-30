@@ -13,7 +13,6 @@ export default function CloudinaryUpload({ onUploadComplete }) {
   const [statusMessage, setStatusMessage] = useState('');
   const [showDirectInput, setShowDirectInput] = useState(false);
   const [directUrl, setDirectUrl] = useState('');
-  const [directName, setDirectName] = useState('002.mp3');
   const [isPrivateUpload, setIsPrivateUpload] = useState(false);
   
   const fileInputRef = useRef(null);
@@ -215,46 +214,57 @@ export default function CloudinaryUpload({ onUploadComplete }) {
 
   const handleAddDirectUrl = async (e) => {
     e.preventDefault();
-    if (!directUrl || !directName) return;
-    setIsUploading(true);
-    setStatusMessage(`[LINKING] ${directName}...`);
-    try {
-      const cleanName = directName.replace(/\.[^/.]+$/, "");
-      let tags = { title: cleanName, artist: "Holy Quran Recitation", album: "Al-Qur'an Al-Kareem (The Holy Quran)", genre: "Islamic / Quran" };
-      
-      const enriched = enrichQuranTrack({
-        id: `cloudinary:direct_${Date.now()}`,
-        name: directName,
-        title: tags.title,
-        artist: tags.artist,
-        album: tags.album,
-        genre: tags.genre,
-        year: '',
-        size: 110000000,
-        mime: 'audio/mpeg',
-        source: 'cloudinary',
-        url: directUrl.trim(),
-        artwork: null,
-        createdAt: Date.now(),
-        folder: isPrivateUpload ? 'private' : 'public'
-      });
+    if (!directUrl.trim()) return;
 
-      const trackRef = doc(db, 'libraryMetadata', enriched.id);
-      await setDoc(trackRef, enriched);
+    setIsUploading(true);
+    const urls = directUrl.split('\n').map(u => u.trim()).filter(u => u);
+    
+    setTotalFiles(urls.length);
+    let successCount = 0;
+    
+    for (let i = 0; i < urls.length; i++) {
+      setCurrentFileIndex(i + 1);
+      const url = urls[i];
+      let extractedName = url.substring(url.lastIndexOf('/') + 1) || `track_${Date.now()}.mp3`;
+      if (extractedName.includes('?')) extractedName = extractedName.split('?')[0];
       
-      setStatusMessage(`Successfully linked ${enriched.title}!`);
-      setUploadStatus('success');
-      setDirectUrl('');
-      setDirectName('002.mp3');
-      setShowDirectInput(false);
-      if (onUploadComplete) onUploadComplete();
-    } catch (err) {
-      console.error('Failed to add direct link:', err);
-      setStatusMessage(`Error linking track: ${err.message}`);
-      setUploadStatus('error');
-    } finally {
-      setIsUploading(false);
+      setStatusMessage(`[LINKING] ${extractedName}...`);
+      
+      try {
+        const cleanName = extractedName.replace(/\.[^/.]+$/, "");
+        let tags = { title: cleanName, artist: "Holy Quran Recitation", album: "Al-Qur'an Al-Kareem (The Holy Quran)", genre: "Islamic / Quran" };
+        
+        const enriched = enrichQuranTrack({
+          id: `cloudinary:direct_${Date.now()}_${i}`,
+          name: extractedName,
+          title: tags.title,
+          artist: tags.artist,
+          album: tags.album,
+          genre: tags.genre,
+          year: '',
+          size: 110000000,
+          mime: 'audio/mpeg',
+          source: 'cloudinary',
+          url: url,
+          artwork: null,
+          createdAt: Date.now(),
+          folder: isPrivateUpload ? 'private' : 'public'
+        });
+
+        const trackRef = doc(db, 'libraryMetadata', enriched.id);
+        await setDoc(trackRef, enriched);
+        successCount++;
+      } catch (err) {
+        console.error('Failed to link', url, err);
+      }
     }
+    
+    setStatusMessage(`Successfully linked ${successCount} tracks!`);
+    setUploadStatus('success');
+    setDirectUrl('');
+    setIsUploading(false);
+    setShowDirectInput(false);
+    if (onUploadComplete) onUploadComplete();
   };
 
   return (
@@ -323,24 +333,16 @@ export default function CloudinaryUpload({ onUploadComplete }) {
         <form onSubmit={handleAddDirectUrl} style={{ marginTop: '8px', padding: '10px', border: '1px solid var(--gold-primary, #d4af37)', background: 'rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
           <div style={{ fontSize: '11px', color: 'var(--gold-primary, #d4af37)', fontFamily: 'monospace', lineHeight: '1.4' }}>
             <strong>HOW TO LINK &gt;100MB SURAHS:</strong><br />
-            1. Upload <code>002.mp3</code> in your <a href="https://console.cloudinary.com/console/media_library" target="_blank" rel="noreferrer" style={{ color: '#fff', textDecoration: 'underline' }}>Cloudinary Dashboard</a> (bypasses 100MB limit).<br />
-            2. Copy the Secure URL & paste below:
+            1. Upload to <a href="https://console.cloudinary.com/console/media_library" target="_blank" rel="noreferrer" style={{ color: '#fff', textDecoration: 'underline' }}>Cloudinary Dashboard</a>.<br />
+            2. Paste Secure URLs below (one per line). Filenames are extracted automatically!
           </div>
-          <input 
-            type="text"
-            placeholder="Paste Cloudinary/Direct Audio URL (https://...)" 
+          <textarea 
+            placeholder="Paste Cloudinary Audio URLs (one per line)&#10;https://.../001.mp3&#10;https://.../002.mp3" 
             value={directUrl}
             onChange={(e) => setDirectUrl(e.target.value)}
             required
-            style={{ padding: '6px', background: '#111', border: '1px solid #444', color: '#fff', fontSize: '11px', fontFamily: 'monospace' }}
-          />
-          <input 
-            type="text"
-            placeholder="Filename (e.g. 002.mp3 or Surah Al-Baqarah)" 
-            value={directName}
-            onChange={(e) => setDirectName(e.target.value)}
-            required
-            style={{ padding: '6px', background: '#111', border: '1px solid #444', color: '#fff', fontSize: '11px', fontFamily: 'monospace' }}
+            rows={5}
+            style={{ padding: '6px', background: '#111', border: '1px solid #444', color: '#fff', fontSize: '11px', fontFamily: 'monospace', resize: 'vertical' }}
           />
           <button 
             type="submit" 
