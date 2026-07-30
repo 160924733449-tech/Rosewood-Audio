@@ -120,9 +120,9 @@ export default function CloudinaryUpload({ onUploadComplete }) {
     if (extractedName.includes('?')) extractedName = extractedName.split('?')[0];
     
     const cleanName = extractedName.replace(/\.[^/.]+$/, "");
-    let tags = { title: cleanName, artist: "Holy Quran Recitation", album: "Al-Qur'an Al-Kareem (The Holy Quran)", genre: "Islamic / Quran" };
+    let tags = { title: cleanName, artist: "Unknown Artist", album: "Unknown Album", genre: "Cloud Music" };
     
-    const enriched = enrichQuranTrack({
+    let trackMetadata = {
       id: `cloudinary:direct_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       name: extractedName,
       title: tags.title,
@@ -137,10 +137,14 @@ export default function CloudinaryUpload({ onUploadComplete }) {
       artwork: null,
       createdAt: Date.now(),
       folder: folder
-    });
+    };
 
-    const trackRef = doc(db, 'libraryMetadata', enriched.id);
-    await setDoc(trackRef, enriched);
+    if (folder === 'public') {
+      trackMetadata = enrichQuranTrack(trackMetadata);
+    }
+
+    const trackRef = doc(db, 'libraryMetadata', trackMetadata.id);
+    await setDoc(trackRef, trackMetadata);
   };
 
   const processFileUpload = async (file, folder, itemId) => {
@@ -237,7 +241,7 @@ export default function CloudinaryUpload({ onUploadComplete }) {
     // 5. Save to Firestore
     const trackId = `cloudinary:${cloudData.public_id.replace(/\//g, '_')}`;
     
-    const trackMetadata = {
+    let trackMetadata = {
       id: trackId,
       name: file.name,
       title: tags.title,
@@ -253,6 +257,10 @@ export default function CloudinaryUpload({ onUploadComplete }) {
       createdAt: Date.now(),
       folder: folder
     };
+    
+    if (folder === 'public') {
+      trackMetadata = enrichQuranTrack(trackMetadata);
+    }
     
     await setDoc(doc(db, 'libraryMetadata', trackId), trackMetadata);
   };
