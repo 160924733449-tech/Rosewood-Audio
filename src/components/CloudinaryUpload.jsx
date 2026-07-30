@@ -1,16 +1,15 @@
-import React, { useState, useRef } from 'react';
-import { UploadCloud, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { UploadCloud, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { parseMetadata, enrichQuranTrack } from '../utils/metadataHelper';
 import { db } from '../config/firebase';
 import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
 
 export default function CloudinaryUpload({ onUploadComplete }) {
-  const [isUploading, setIsUploading] = useState(false);
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const [totalFiles, setTotalFiles] = useState(0);
-  const [chunkProgress, setChunkProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState(''); // '', 'success', 'error'
-  const [statusMessage, setStatusMessage] = useState('');
+  // --- QUEUE STATE ---
+  const [uploadQueue, setUploadQueue] = useState([]); 
+  const [activeUploads, setActiveUploads] = useState(0);
+  const [chunkProgressMap, setChunkProgressMap] = useState({});
+
   const [showDirectInput, setShowDirectInput] = useState(false);
   const [directUrl, setDirectUrl] = useState('');
   const [isPrivateUpload, setIsPrivateUpload] = useState(false);
@@ -20,251 +19,246 @@ export default function CloudinaryUpload({ onUploadComplete }) {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-  const triggerSelect = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
+  const normalizeStr = (str) => {
+    if (!str) return '';
+    let cleaned = str.replace(/^[0-9\s.\-_]+/, '');
+    if (!cleaned) cleaned = str;
+    return cleaned.toLowerCase().replace(/[^a-z0-9]/g, '');
   };
 
+  // --- ENQUEUE FILES ---
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
     if (!cloudName || cloudName === 'YOUR_CLOUD_NAME') {
-      setUploadStatus('error');
-      setStatusMessage('Cloudinary Cloud Name is missing in .env');
+      alert('Cloudinary Cloud Name is missing in .env');
       return;
     }
 
-    setIsUploading(true);
-    setUploadStatus('');
-    setStatusMessage('');
-    setTotalFiles(files.length);
-    setCurrentFileIndex(0);
-    setChunkProgress(0);
-    
-    let successCount = 0;
+    const newItems = files.map(file => ({
+      id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'file',
+      data: file,
+      name: file.name,
+      folder: isPrivateUpload ? 'private' : 'public',
+      status: 'pending',
+      errorMsg: ''
+    }));
 
-    const normalizeStr = (str) => {
-      if (!str) return '';
-      let cleaned = str.replace(/^[0-9\s.\-_]+/, '');
-      if (!cleaned) cleaned = str;
-      return cleaned.toLowerCase().replace(/[^a-z0-9]/g, '');
-    };
+    setUploadQueue(prev => [...prev, ...newItems]);
     
-    // Fetch existing library to prevent duplicates
-    let existingFiles = new Map();
-    try {
-      const snap = await getDocs(collection(db, 'libraryMetadata'));
-      snap.forEach(d => {
-        const data = d.data();
-        if (data.name && data.size) {
-          existingFiles.set(`${data.name}_${data.size}`, true);
-        }
-        if (data.title && data.artist && data.title !== 'Unknown Title' && data.artist !== 'Unknown Artist') {
-          const fp = `${normalizeStr(data.title)}_${normalizeStr(data.artist)}`;
-          if (fp.length > 3) existingFiles.set(fp, true);
-        }
-      });
-    } catch (err) {
-      console.warn("Failed to fetch existing library for duplicate check", err);
-    }
-    
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setCurrentFileIndex(i + 1);
-      setChunkProgress(0);
-      setChunkProgress(0);
-      
-      // 1. Parse Metadata first to build smart fingerprint
-      let tags = { title: file.name.replace(/\.[^/.]+$/, ""), artist: "Unknown Artist", album: "Unknown Album" };
-      try {
-        const parsedTags = await parseMetadata(file);
-        if (parsedTags) {
-          tags = { ...tags, ...parsedTags };
-        }
-      } catch (err) {
-        console.warn(`Failed to parse ID3 tags for ${file.name}`, err);
-      }
-      
-      const fileKey = `${file.name}_${file.size}`;
-      const tagKey = `${normalizeStr(tags.title)}_${normalizeStr(tags.artist)}`;
-      
-      if (
-        existingFiles.has(fileKey) || 
-        (tags.title && tags.artist && tags.artist !== 'Unknown Artist' && tagKey.length > 3 && existingFiles.has(tagKey))
-      ) {
-        setStatusMessage(`[SKIPPED] ${file.name} (Duplicate)`);
-        console.log(`Skipped duplicate file: ${file.name}`);
-        successCount++; // Count as success so UI doesn't show an error
-        continue;
-      }
-      
-      setStatusMessage(`[UPLOADING] ${file.name}`);
-      
-      try {
-        
-        // 1.5 Start Artwork Upload in Parallel (Zero extra latency!)
-        let artworkUrlPromise = Promise.resolve(null);
-        if (tags && tags.artwork) {
-          const artFormData = new FormData();
-          artFormData.append('file', tags.artwork); // base64 data URI
-          artFormData.append('upload_preset', uploadPreset);
-          artworkUrlPromise = fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-            method: 'POST',
-            body: artFormData
-          }).then(res => res.ok ? res.json() : null)
-            .then(data => data ? data.secure_url : null)
-            .catch(err => {
-              console.warn('Artwork upload failed:', err);
-              return null;
-            });
-        }
-        
-        // 2. Upload to Cloudinary using Chunked Upload (Bypasses 10MB limit)
-        const CHUNK_SIZE = 10000000; // 10MB chunks
-        const uniqueUploadId = Math.random().toString(36).substring(2) + Date.now().toString(36);
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-        
-        let secureUrl = null;
-        let cloudData = null;
-
-        for (let currentChunk = 0; currentChunk < totalChunks; currentChunk++) {
-          const start = currentChunk * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, file.size);
-          const chunk = file.slice(start, end);
-          
-          const formData = new FormData();
-          formData.append('file', chunk);
-          formData.append('upload_preset', uploadPreset);
-          formData.append('resource_type', 'auto');
-          
-          const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-            method: 'POST',
-            headers: {
-              'X-Unique-Upload-Id': uniqueUploadId,
-              'Content-Range': `bytes ${start}-${end - 1}/${file.size}`
-            },
-            body: formData,
-          });
-          
-          if (!uploadResponse.ok) {
-            throw new Error(`Cloudinary upload failed at chunk ${currentChunk + 1}`);
-          }
-          
-          setChunkProgress(Math.round(((currentChunk + 1) / totalChunks) * 100));
-          
-          const result = await uploadResponse.json();
-          if (currentChunk === totalChunks - 1) {
-            cloudData = result;
-            secureUrl = cloudData.secure_url;
-          }
-        }
-        
-        // Wait for artwork to finish (usually finishes long before audio)
-        const finalArtworkUrl = await artworkUrlPromise;
-        
-        // 3. Save to Firestore
-        const trackId = `cloudinary:${cloudData.public_id.replace(/\//g, '_')}`;
-        
-        const trackMetadata = {
-          id: trackId,
-          name: file.name,
-          title: tags.title,
-          artist: tags.artist,
-          album: tags.album,
-          genre: tags.genre || 'Cloud Music',
-          year: tags.year || '',
-          size: file.size,
-          mime: file.type || 'audio/mpeg',
-          source: 'cloudinary',
-          url: secureUrl, // Direct streaming URL
-          artwork: finalArtworkUrl,
-          createdAt: Date.now(),
-          folder: isPrivateUpload ? 'private' : 'public'
-        };
-        
-        const trackRef = doc(db, 'libraryMetadata', trackId);
-        await setDoc(trackRef, trackMetadata);
-        
-        successCount++;
-        
-      } catch (error) {
-        console.error(`Error uploading ${file.name}:`, error);
-      }
-    }
-    
-    setIsUploading(false);
-    
-    if (successCount === files.length) {
-      setUploadStatus('success');
-      setStatusMessage(`Successfully uploaded ${successCount} track(s).`);
-      if (onUploadComplete) onUploadComplete();
-    } else {
-      setUploadStatus('error');
-      setStatusMessage(`Uploaded ${successCount}/${files.length} track(s). Some failed.`);
-      if (successCount > 0 && onUploadComplete) onUploadComplete();
-    }
-    
-    // Clear input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    // Clear input so same files can be selected again if needed
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // --- ENQUEUE DIRECT URLS ---
   const handleAddDirectUrl = async (e) => {
     e.preventDefault();
     if (!directUrl.trim()) return;
 
-    setIsUploading(true);
     const urls = directUrl.split('\n').map(u => u.trim()).filter(u => u);
     
-    setTotalFiles(urls.length);
-    let successCount = 0;
-    
-    for (let i = 0; i < urls.length; i++) {
-      setCurrentFileIndex(i + 1);
-      const url = urls[i];
+    const newItems = urls.map((url, i) => {
       let extractedName = url.substring(url.lastIndexOf('/') + 1) || `track_${Date.now()}.mp3`;
       if (extractedName.includes('?')) extractedName = extractedName.split('?')[0];
-      
-      setStatusMessage(`[LINKING] ${extractedName}...`);
-      
-      try {
-        const cleanName = extractedName.replace(/\.[^/.]+$/, "");
-        let tags = { title: cleanName, artist: "Holy Quran Recitation", album: "Al-Qur'an Al-Kareem (The Holy Quran)", genre: "Islamic / Quran" };
-        
-        const enriched = enrichQuranTrack({
-          id: `cloudinary:direct_${Date.now()}_${i}`,
-          name: extractedName,
-          title: tags.title,
-          artist: tags.artist,
-          album: tags.album,
-          genre: tags.genre,
-          year: '',
-          size: 110000000,
-          mime: 'audio/mpeg',
-          source: 'cloudinary',
-          url: url,
-          artwork: null,
-          createdAt: Date.now(),
-          folder: isPrivateUpload ? 'private' : 'public'
-        });
 
-        const trackRef = doc(db, 'libraryMetadata', enriched.id);
-        await setDoc(trackRef, enriched);
-        successCount++;
+      return {
+        id: `url_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'url',
+        data: url,
+        name: extractedName,
+        folder: isPrivateUpload ? 'private' : 'public',
+        status: 'pending',
+        errorMsg: ''
+      };
+    });
+
+    setUploadQueue(prev => [...prev, ...newItems]);
+    setDirectUrl('');
+    setShowDirectInput(false);
+  };
+
+  // --- QUEUE PROCESSOR ENGINE ---
+  useEffect(() => {
+    const processNext = async () => {
+      if (activeUploads >= 1) return; // Process 1 at a time to prevent rate-limiting
+
+      const nextIndex = uploadQueue.findIndex(item => item.status === 'pending');
+      if (nextIndex === -1) return; // Nothing to process
+
+      const item = uploadQueue[nextIndex];
+
+      // Mark as uploading
+      setUploadQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'uploading' } : q));
+      setActiveUploads(prev => prev + 1);
+
+      try {
+        if (item.type === 'file') {
+          await processFileUpload(item.data, item.folder, item.id);
+        } else if (item.type === 'url') {
+          await processUrlUpload(item.data, item.folder, item.id);
+        }
+        
+        // Mark as success
+        setUploadQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'success' } : q));
+        if (onUploadComplete) onUploadComplete();
       } catch (err) {
-        console.error('Failed to link', url, err);
+        console.error(`Upload failed for ${item.name}:`, err);
+        setUploadQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'error', errorMsg: err.message } : q));
+      } finally {
+        setActiveUploads(prev => Math.max(0, prev - 1));
       }
+    };
+
+    processNext();
+  }, [uploadQueue, activeUploads]);
+
+  // --- PROCESSING LOGIC ---
+  const processUrlUpload = async (url, folder, itemId) => {
+    let extractedName = url.substring(url.lastIndexOf('/') + 1) || `track_${Date.now()}.mp3`;
+    if (extractedName.includes('?')) extractedName = extractedName.split('?')[0];
+    
+    const cleanName = extractedName.replace(/\.[^/.]+$/, "");
+    let tags = { title: cleanName, artist: "Holy Quran Recitation", album: "Al-Qur'an Al-Kareem (The Holy Quran)", genre: "Islamic / Quran" };
+    
+    const enriched = enrichQuranTrack({
+      id: `cloudinary:direct_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      name: extractedName,
+      title: tags.title,
+      artist: tags.artist,
+      album: tags.album,
+      genre: tags.genre,
+      year: '',
+      size: 110000000,
+      mime: 'audio/mpeg',
+      source: 'cloudinary',
+      url: url,
+      artwork: null,
+      createdAt: Date.now(),
+      folder: folder
+    });
+
+    const trackRef = doc(db, 'libraryMetadata', enriched.id);
+    await setDoc(trackRef, enriched);
+  };
+
+  const processFileUpload = async (file, folder, itemId) => {
+    setChunkProgressMap(prev => ({ ...prev, [itemId]: 0 }));
+
+    // 1. Parse Metadata
+    let tags = { title: file.name.replace(/\.[^/.]+$/, ""), artist: "Unknown Artist", album: "Unknown Album" };
+    try {
+      const parsedTags = await parseMetadata(file);
+      if (parsedTags) {
+        tags = { ...tags, ...parsedTags };
+      }
+    } catch (err) {
+      console.warn(`Failed to parse ID3 tags for ${file.name}`, err);
     }
     
-    setStatusMessage(`Successfully linked ${successCount} tracks!`);
-    setUploadStatus('success');
-    setDirectUrl('');
-    setIsUploading(false);
-    setShowDirectInput(false);
-    if (onUploadComplete) onUploadComplete();
+    // 2. Duplicate Check
+    const snap = await getDocs(collection(db, 'libraryMetadata'));
+    let duplicate = false;
+    const fileKey = `${file.name}_${file.size}`;
+    const tagKey = `${normalizeStr(tags.title)}_${normalizeStr(tags.artist)}`;
+    
+    snap.forEach(d => {
+      const data = d.data();
+      if (data.name === file.name && data.size === file.size) duplicate = true;
+      if (tags.title && tags.artist && tags.artist !== 'Unknown Artist') {
+        const fp = `${normalizeStr(data.title)}_${normalizeStr(data.artist)}`;
+        if (fp.length > 3 && fp === tagKey) duplicate = true;
+      }
+    });
+
+    if (duplicate) {
+      console.log(`Skipped duplicate file: ${file.name}`);
+      setChunkProgressMap(prev => ({ ...prev, [itemId]: 100 }));
+      return; // Resolves cleanly, marked as success
+    }
+
+    // 3. Start Artwork Upload
+    let artworkUrlPromise = Promise.resolve(null);
+    if (tags && tags.artwork) {
+      const artFormData = new FormData();
+      artFormData.append('file', tags.artwork);
+      artFormData.append('upload_preset', uploadPreset);
+      artworkUrlPromise = fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: 'POST',
+        body: artFormData
+      }).then(res => res.ok ? res.json() : null)
+        .then(data => data ? data.secure_url : null)
+        .catch(() => null);
+    }
+
+    // 4. Chunked Audio Upload
+    const CHUNK_SIZE = 10000000; // 10MB
+    const uniqueUploadId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    
+    let secureUrl = null;
+    let cloudData = null;
+
+    for (let currentChunk = 0; currentChunk < totalChunks; currentChunk++) {
+      const start = currentChunk * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      
+      const formData = new FormData();
+      formData.append('file', chunk);
+      formData.append('upload_preset', uploadPreset);
+      formData.append('resource_type', 'auto');
+      
+      const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+        method: 'POST',
+        headers: {
+          'X-Unique-Upload-Id': uniqueUploadId,
+          'Content-Range': `bytes ${start}-${end - 1}/${file.size}`
+        },
+        body: formData,
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error(`Cloudinary upload failed at chunk ${currentChunk + 1}`);
+      }
+      
+      setChunkProgressMap(prev => ({ ...prev, [itemId]: Math.round(((currentChunk + 1) / totalChunks) * 100) }));
+      
+      const result = await uploadResponse.json();
+      if (currentChunk === totalChunks - 1) {
+        cloudData = result;
+        secureUrl = cloudData.secure_url;
+      }
+    }
+
+    const finalArtworkUrl = await artworkUrlPromise;
+
+    // 5. Save to Firestore
+    const trackId = `cloudinary:${cloudData.public_id.replace(/\//g, '_')}`;
+    
+    const trackMetadata = {
+      id: trackId,
+      name: file.name,
+      title: tags.title,
+      artist: tags.artist,
+      album: tags.album,
+      genre: tags.genre || 'Cloud Music',
+      year: tags.year || '',
+      size: file.size,
+      mime: file.type || 'audio/mpeg',
+      source: 'cloudinary',
+      url: secureUrl,
+      artwork: finalArtworkUrl,
+      createdAt: Date.now(),
+      folder: folder
+    };
+    
+    await setDoc(doc(db, 'libraryMetadata', trackId), trackMetadata);
+  };
+
+  const triggerSelect = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
   };
 
   return (
@@ -287,51 +281,48 @@ export default function CloudinaryUpload({ onUploadComplete }) {
         style={{ display: 'none' }} 
       />
       
-      <button 
-        className="menu-item" 
-        onClick={triggerSelect} 
-        disabled={isUploading}
-        style={{ 
-          background: isUploading ? '#ccc' : '#000', 
-          color: isUploading ? '#000' : '#fff', 
-          border: '2px solid #000',
-          fontFamily: 'monospace',
-          fontWeight: 'bold',
-          borderRadius: 0,
-          textTransform: 'uppercase',
-          justifyContent: 'center',
-          cursor: isUploading ? 'not-allowed' : 'pointer'
-        }}
-      >
-        <span>{isUploading ? 'SYS.UPLOADING...' : 'INITIATE UPLOAD'}</span>
-      </button>
-      
-      <button 
-        type="button"
-        className="menu-item" 
-        onClick={() => setShowDirectInput(!showDirectInput)} 
-        disabled={isUploading}
-        style={{ 
-          background: showDirectInput ? 'var(--gold-primary, #d4af37)' : 'transparent', 
-          color: showDirectInput ? '#000' : 'var(--gold-primary, #d4af37)', 
-          border: '1px solid var(--gold-primary, #d4af37)',
-          fontFamily: 'monospace',
-          fontWeight: 'bold',
-          borderRadius: 0,
-          textTransform: 'uppercase',
-          justifyContent: 'center',
-          cursor: isUploading ? 'not-allowed' : 'pointer',
-          marginTop: '6px',
-          fontSize: '11px',
-          padding: '6px'
-        }}
-      >
-        <span>{showDirectInput ? '[-] CANCEL DIRECT LINK' : '[+] ADD DIRECT URL (>100MB FILE)'}</span>
-      </button>
+      <div style={{ display: 'flex', gap: '4px' }}>
+        <button 
+          className="menu-item" 
+          onClick={triggerSelect} 
+          style={{ 
+            flex: 1,
+            background: '#000', 
+            color: '#fff', 
+            border: '1px solid var(--accent-coral)',
+            fontFamily: 'monospace',
+            fontWeight: 'bold',
+            borderRadius: 0,
+            textTransform: 'uppercase',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            padding: '8px'
+          }}
+        >
+          <span>INITIATE UPLOAD</span>
+        </button>
+        
+        <button 
+          type="button"
+          onClick={() => setShowDirectInput(!showDirectInput)} 
+          style={{ 
+            background: showDirectInput ? 'var(--accent-coral)' : 'transparent', 
+            color: showDirectInput ? '#000' : 'var(--accent-coral)', 
+            border: '1px solid var(--accent-coral)',
+            fontFamily: 'monospace',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            padding: '8px 12px',
+            fontSize: '14px'
+          }}
+        >
+          <span>{showDirectInput ? '-' : '+'} URL</span>
+        </button>
+      </div>
 
       {showDirectInput && (
-        <form onSubmit={handleAddDirectUrl} style={{ marginTop: '8px', padding: '10px', border: '1px solid var(--gold-primary, #d4af37)', background: 'rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
-          <div style={{ fontSize: '11px', color: 'var(--gold-primary, #d4af37)', fontFamily: 'monospace', lineHeight: '1.4' }}>
+        <form onSubmit={handleAddDirectUrl} style={{ marginTop: '8px', padding: '10px', border: '1px solid var(--accent-coral)', background: 'rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
+          <div style={{ fontSize: '11px', color: 'var(--accent-coral)', fontFamily: 'monospace', lineHeight: '1.4' }}>
             <strong>HOW TO LINK &gt;100MB SURAHS:</strong><br />
             1. Upload to <a href="https://console.cloudinary.com/console/media_library" target="_blank" rel="noreferrer" style={{ color: '#fff', textDecoration: 'underline' }}>Cloudinary Dashboard</a>.<br />
             2. Paste Secure URLs below (one per line). Filenames are extracted automatically!
@@ -341,39 +332,52 @@ export default function CloudinaryUpload({ onUploadComplete }) {
             value={directUrl}
             onChange={(e) => setDirectUrl(e.target.value)}
             required
-            rows={5}
+            rows={4}
             style={{ padding: '6px', background: '#111', border: '1px solid #444', color: '#fff', fontSize: '11px', fontFamily: 'monospace', resize: 'vertical' }}
           />
           <button 
             type="submit" 
-            disabled={isUploading}
-            style={{ background: 'var(--gold-primary, #d4af37)', color: '#000', border: 'none', padding: '8px', fontWeight: 'bold', fontFamily: 'monospace', cursor: 'pointer', textTransform: 'uppercase' }}
+            style={{ background: 'var(--accent-coral)', color: '#000', border: 'none', padding: '8px', fontWeight: 'bold', fontFamily: 'monospace', cursor: 'pointer', textTransform: 'uppercase' }}
           >
-            LINK TO KISWAH LIBRARY
+            ADD TO QUEUE
           </button>
         </form>
       )}
       
-      {isUploading && (
-        <div style={{ marginTop: '8px', border: '2px solid #000', background: '#fff', padding: '8px', fontFamily: 'monospace', color: '#000' }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-            FILE {currentFileIndex} OF {totalFiles}
+      {/* QUEUE STATUS UI */}
+      {uploadQueue.length > 0 && (
+        <div style={{ marginTop: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', padding: '8px', maxHeight: '150px', overflowY: 'auto' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+            <span>UPLOAD QUEUE ({uploadQueue.filter(q => q.status === 'success').length}/{uploadQueue.length})</span>
+            {activeUploads > 0 && <Loader2 size={12} className="spin" style={{ color: 'var(--accent-coral)' }} />}
           </div>
-          <div style={{ fontSize: '11px', wordBreak: 'break-all', marginBottom: '8px' }}>
-            {statusMessage}
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {uploadQueue.slice().reverse().map((item, idx) => (
+              <div key={item.id} style={{ fontSize: '10px', fontFamily: 'monospace', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px', background: 'rgba(0,0,0,0.2)' }}>
+                <span style={{ 
+                  whiteSpace: 'nowrap', 
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis', 
+                  maxWidth: '180px',
+                  color: item.status === 'error' ? 'var(--accent-rose)' : 'var(--text-primary)'
+                }}>
+                  {item.name}
+                </span>
+                
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: '40px', justifyContent: 'flex-end' }}>
+                  {item.status === 'pending' && <span style={{ color: 'var(--text-muted)' }}>WAITING</span>}
+                  {item.status === 'uploading' && (
+                    <span style={{ color: 'var(--accent-coral)' }}>
+                      {item.type === 'file' ? `${chunkProgressMap[item.id] || 0}%` : 'LINKING'}
+                    </span>
+                  )}
+                  {item.status === 'success' && <CheckCircle size={10} color="#4ade80" />}
+                  {item.status === 'error' && <XCircle size={10} color="var(--accent-rose)" title={item.errorMsg} />}
+                </span>
+              </div>
+            ))}
           </div>
-          <div style={{ width: '100%', background: '#ccc', border: '1px solid #000', height: '12px', position: 'relative' }}>
-            <div style={{ width: `${chunkProgress}%`, background: '#000', height: '100%', transition: 'width 0.1s' }}></div>
-            <div style={{ position: 'absolute', top: '-1px', left: 0, width: '100%', textAlign: 'center', fontSize: '9px', color: chunkProgress > 50 ? '#fff' : '#000', fontWeight: 'bold' }}>
-              {chunkProgress}%
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {!isUploading && statusMessage && (
-        <div style={{ marginTop: '8px', padding: '8px', border: '2px dashed #000', fontFamily: 'monospace', fontSize: '11px', background: uploadStatus === 'error' ? 'red' : '#fff', color: uploadStatus === 'error' ? '#fff' : '#000', fontWeight: 'bold' }}>
-          {statusMessage}
         </div>
       )}
     </div>
