@@ -415,6 +415,7 @@ export default function LibraryView({
                 <option value="duration-desc">Sort: Duration (Longest)</option>
               </select>
             </div>
+            </div>
           </div>
         </div>
       </div>
