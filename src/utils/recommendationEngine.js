@@ -210,6 +210,15 @@ export function getNextTrackAutoplayWithState(allTracks, currentTrack, history, 
     score += artistAffinities[track.artist] || 0;
     score += genreAffinities[track.genre] || 0;
 
+    // Smart Continuity: Add a massive score bonus if it matches the current track's genre
+    if (currentTrack) {
+      const currentGenre = currentTrack.macroGenre || currentTrack.genre;
+      const trackGenre = track.macroGenre || track.genre;
+      if (currentGenre && trackGenre === currentGenre) {
+        score += 50; 
+      }
+    }
+
     // Apply fatigue from fatigueMap and recent play history
     const fatigue = fatigueMap[track.id] || 0;
 

@@ -183,6 +183,17 @@ export default function App() {
         }
 
         if (unplayed.length > 0) {
+          // Smart Shuffle: Lock to the current genre to prevent sudden mood changes
+          if (current) {
+            const currentGenre = current.macroGenre || current.genre;
+            if (currentGenre) {
+              const genreMatched = unplayed.filter(t => (t.macroGenre || t.genre) === currentGenre);
+              if (genreMatched.length > 0) {
+                unplayed = genreMatched;
+              }
+            }
+          }
+
           // Randomized selection from unplayed candidates to prevent repeating 2-song loops
           const randomIndex = Math.floor(Math.random() * unplayed.length);
           next = unplayed[randomIndex];
