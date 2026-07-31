@@ -36,15 +36,24 @@ export default function CloudinaryUpload({ onUploadComplete }) {
       return;
     }
 
-    const newItems = files.map(file => ({
-      id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'file',
-      data: file,
-      name: file.name,
-      folder: isPrivateUpload ? 'private' : 'public',
-      status: 'pending',
-      errorMsg: ''
-    }));
+    const newItems = files.map(file => {
+      let displayName = file.name;
+      if (!isPrivateUpload) {
+        const enriched = enrichQuranTrack({ name: file.name, title: file.name.replace(/\.[^/.]+$/, "") });
+        if (enriched.title) displayName = enriched.title;
+      }
+      
+      return {
+        id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'file',
+        data: file,
+        name: file.name,
+        displayName,
+        folder: isPrivateUpload ? 'private' : 'public',
+        status: 'pending',
+        errorMsg: ''
+      };
+    });
 
     setUploadQueue(prev => [...prev, ...newItems]);
     
@@ -63,11 +72,18 @@ export default function CloudinaryUpload({ onUploadComplete }) {
       let extractedName = url.substring(url.lastIndexOf('/') + 1) || `track_${Date.now()}.mp3`;
       if (extractedName.includes('?')) extractedName = extractedName.split('?')[0];
 
+      let displayName = extractedName;
+      if (!isPrivateUpload) {
+        const enriched = enrichQuranTrack({ name: extractedName, title: extractedName.replace(/\.[^/.]+$/, "") });
+        if (enriched.title) displayName = enriched.title;
+      }
+
       return {
         id: `url_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'url',
         data: url,
         name: extractedName,
+        displayName,
         folder: isPrivateUpload ? 'private' : 'public',
         status: 'pending',
         errorMsg: ''
@@ -367,13 +383,15 @@ export default function CloudinaryUpload({ onUploadComplete }) {
                   whiteSpace: 'nowrap', 
                   overflow: 'hidden', 
                   textOverflow: 'ellipsis', 
-                  maxWidth: '180px',
+                  flex: 1,
+                  minWidth: 0,
+                  marginRight: '8px',
                   color: item.status === 'error' ? 'var(--accent-rose)' : 'var(--text-primary)'
                 }}>
-                  {item.name}
+                  {item.displayName || item.name}
                 </span>
                 
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: '40px', justifyContent: 'flex-end' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: '40px', justifyContent: 'flex-end', flexShrink: 0 }}>
                   {item.status === 'pending' && <span style={{ color: 'var(--text-muted)' }}>WAITING</span>}
                   {item.status === 'uploading' && (
                     <span style={{ color: 'var(--accent-coral)' }}>
