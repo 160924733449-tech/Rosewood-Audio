@@ -403,7 +403,15 @@ export function enrichQuranTrack(track) {
         title: newTitle,
         artist: newArtist,
         album: newAlbum,
-        genre: 'Islamic / Quran'
+        genre: 'Islamic / Quran',
+        artwork: track.artwork || '/assets/kaaba_cover.jpg'
+      };
+    } else {
+      // Title already correct, but ensure artwork is present
+      return {
+        ...track,
+        genre: 'Islamic / Quran',
+        artwork: track.artwork || '/assets/kaaba_cover.jpg'
       };
     }
   }
