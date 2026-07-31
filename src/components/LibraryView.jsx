@@ -37,6 +37,7 @@ export default function LibraryView({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all', 'offline', 'local', 'shared'
+  const [genreFilter, setGenreFilter] = useState('all'); // 'all', 'Punjabi', 'Pop', etc.
   const [sortOption, setSortOption] = useState('default');
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedTrackIds, setSelectedTrackIds] = useState(new Set());
@@ -142,6 +143,11 @@ export default function LibraryView({
       );
     }
 
+    // Filter by Genre Classification
+    if (genreFilter !== 'all') {
+      list = list.filter(t => (t.macroGenre || t.genre || 'Global') === genreFilter);
+    }
+
     // Sort tracks
     if (sortOption === 'recent') {
       list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -156,7 +162,17 @@ export default function LibraryView({
     }
 
     return list;
-  }, [tracks, filterType, searchQuery, sortOption]);
+  }, [tracks, filterType, searchQuery, sortOption, genreFilter]);
+
+  // Unique Genres for Classification Dropdown
+  const uniqueGenres = useMemo(() => {
+    const genres = new Set();
+    tracks.forEach(t => {
+      const g = t.macroGenre || t.genre;
+      if (g && g !== 'Global') genres.add(g);
+    });
+    return Array.from(genres).sort();
+  }, [tracks]);
 
   // Collection Stats
   const totalDurationSec = useMemo(() => {
@@ -351,12 +367,11 @@ export default function LibraryView({
               ))}
             </div>
 
-            {/* Sort Dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Filter size={14} color="var(--text-muted)" />
+            {/* Classification & Sort Dropdowns */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <select
-                value={sortOption}
-                onChange={(e) => setSortOption(e.target.value)}
+                value={genreFilter}
+                onChange={(e) => setGenreFilter(e.target.value)}
                 style={{
                   padding: '8px 12px',
                   background: 'var(--bg-surface)',
@@ -369,8 +384,31 @@ export default function LibraryView({
                   cursor: 'pointer'
                 }}
               >
-                <option value="default">Sort: Default</option>
-                <option value="recent">Sort: Recently Added</option>
+                <option value="all">Classify: All Genres</option>
+                {uniqueGenres.map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Filter size={14} color="var(--text-muted)" />
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'var(--bg-surface)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="default">Sort: Default</option>
+                  <option value="recent">Sort: Recently Added</option>
                 <option value="title-asc">Sort: Title (A-Z)</option>
                 <option value="title-desc">Sort: Title (Z-A)</option>
                 <option value="artist-asc">Sort: Artist (A-Z)</option>
