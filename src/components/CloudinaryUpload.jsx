@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { UploadCloud, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { parseMetadata, enrichQuranTrack } from '../utils/metadataHelper';
 import { db } from '../config/firebase';
-import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 
 export default function CloudinaryUpload({ onUploadComplete }) {
   // --- QUEUE STATE ---
@@ -180,22 +180,57 @@ export default function CloudinaryUpload({ onUploadComplete }) {
     // 2. Duplicate Check
     const snap = await getDocs(collection(db, 'libraryMetadata'));
     let duplicate = false;
+    let existingDocId = null;
+    let existingData = null;
+
     const fileKey = `${file.name}_${file.size}`;
     const tagKey = `${normalizeStr(tags.title)}_${normalizeStr(tags.artist)}`;
     
     snap.forEach(d => {
       const data = d.data();
-      if (data.name === file.name && data.size === file.size) duplicate = true;
+      let isMatch = false;
+      if (data.name === file.name && data.size === file.size) isMatch = true;
       if (tags.title && tags.artist && tags.artist !== 'Unknown Artist') {
         const fp = `${normalizeStr(data.title)}_${normalizeStr(data.artist)}`;
-        if (fp.length > 3 && fp === tagKey) duplicate = true;
+        if (fp.length > 3 && fp === tagKey) isMatch = true;
+      }
+
+      if (isMatch) {
+        duplicate = true;
+        existingDocId = d.id;
+        existingData = data;
       }
     });
 
     if (duplicate) {
-      console.log(`Skipped duplicate file: ${file.name}`);
+      // Smart Patch: If duplicate exists but is missing artwork (or has default), patch it without re-uploading audio
+      if ((!existingData.artwork || existingData.artwork.includes('kaaba_cover')) && tags.artworkBlob) {
+        console.log(`Duplicate found, patching missing artwork for: ${file.name}`);
+        const artFormData = new FormData();
+        artFormData.append('file', tags.artworkBlob);
+        artFormData.append('upload_preset', uploadPreset);
+        
+        try {
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST',
+            body: artFormData
+          });
+          if (res.ok) {
+            const uploadedData = await res.json();
+            if (uploadedData && uploadedData.secure_url) {
+              await updateDoc(doc(db, 'libraryMetadata', existingDocId), { artwork: uploadedData.secure_url });
+              console.log('Artwork successfully patched in Firestore!');
+            }
+          }
+        } catch(e) {
+          console.warn('Failed to patch artwork via duplicate flow:', e);
+        }
+      } else {
+        console.log(`Skipped duplicate file: ${file.name}`);
+      }
+
       setChunkProgressMap(prev => ({ ...prev, [itemId]: 100 }));
-      return; // Resolves cleanly, marked as success
+      return; // Resolves cleanly, skips the 10MB audio upload
     }
 
     // 3. Start Artwork Upload
