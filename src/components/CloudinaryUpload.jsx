@@ -200,9 +200,9 @@ export default function CloudinaryUpload({ onUploadComplete }) {
 
     // 3. Start Artwork Upload
     let artworkUrlPromise = Promise.resolve(null);
-    if (tags && tags.artwork) {
+    if (tags && tags.artworkBlob) {
       const artFormData = new FormData();
-      artFormData.append('file', tags.artwork);
+      artFormData.append('file', tags.artworkBlob);
       artFormData.append('upload_preset', uploadPreset);
       artworkUrlPromise = fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: 'POST',

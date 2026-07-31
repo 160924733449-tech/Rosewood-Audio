@@ -40,12 +40,14 @@ export function parseMetadata(file) {
         onSuccess: (tag) => {
           const tags = tag.tags;
           let artwork = null;
+          let artworkBlob = null;
 
           if (tags.picture) {
             const { data, format } = tags.picture;
             try {
               const bytes = new Uint8Array(data);
               const blob = new Blob([bytes], { type: format || 'image/jpeg' });
+              artworkBlob = blob;
               artwork = URL.createObjectURL(blob);
             } catch (err) {
               console.error('Error creating artwork blob:', err);
@@ -59,6 +61,7 @@ export function parseMetadata(file) {
             genre: tags.genre || 'Unknown Genre',
             year: tags.year || '',
             artwork,
+            artworkBlob,
             url: filename,
             name: filename
           }));
