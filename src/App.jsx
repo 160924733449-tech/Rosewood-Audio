@@ -1664,26 +1664,27 @@ export default function App() {
       {(!isAdmin || currentTrack) && (
         <PlayerBar
           currentTrack={currentTrack}
-        loadingTrack={loadingTrack}
-        isPlaying={isPlaying}
-        onPlayPauseToggle={handlePlayPauseToggle}
-        onNext={handleNextTrack}
-        onPrev={handlePrevTrack}
-        shuffle={shuffle}
-        setShuffle={setShuffle}
-        repeat={repeat}
-        setRepeat={setRepeat}
-        autoNext={autoNext}
-        setAutoNext={setAutoNext}
-        currentTime={currentTime}
-        duration={duration}
-        onSeek={handleSeek}
-        volume={volume}
-        onVolumeChange={setVolume}
-        audioQuality={audioQuality}
-        setAudioQuality={setAudioQuality}
-        onExpand={() => setIsNowPlayingExpanded(true)}
-      />
+          loadingTrack={loadingTrack}
+          isPlaying={isPlaying}
+          onPlayPauseToggle={handlePlayPauseToggle}
+          onNext={handleNextTrack}
+          onPrev={handlePrevTrack}
+          shuffle={shuffle}
+          setShuffle={setShuffle}
+          repeat={repeat}
+          setRepeat={setRepeat}
+          autoNext={autoNext}
+          setAutoNext={setAutoNext}
+          currentTime={currentTime}
+          duration={duration}
+          onSeek={handleSeek}
+          volume={volume}
+          onVolumeChange={setVolume}
+          audioQuality={audioQuality}
+          setAudioQuality={setAudioQuality}
+          onExpand={() => setIsNowPlayingExpanded(true)}
+          isExpanded={isNowPlayingExpanded}
+        />
       )}
 
       {isNowPlayingExpanded && currentTrack && (
@@ -1724,7 +1725,9 @@ export default function App() {
         </button>
       )}
 
-      <MobileBottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
+      {!isNowPlayingExpanded && (
+        <MobileBottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
+      )}
 
       {/* Friend Activity Panel */}
       <FriendActivity isVisible={showFriendActivity} onClose={() => setShowFriendActivity(false)} />

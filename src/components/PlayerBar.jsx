@@ -22,7 +22,8 @@ export default function PlayerBar({
   onVolumeChange,
   audioQuality,
   setAudioQuality,
-  onExpand
+  onExpand,
+  isExpanded = false
 }) {
   const timelineRef = useRef(null);
   const volumeRef = useRef(null);
@@ -100,7 +101,7 @@ export default function PlayerBar({
   const volumePercent = volume * 100;
 
   return (
-    <div className="player-bar glass">
+    <div className={`player-bar glass ${isExpanded ? 'expanded' : ''}`}>
       {/* Current track metadata */}
       <div 
         className="player-track-info" 
