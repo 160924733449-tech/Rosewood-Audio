@@ -3359,7 +3359,14 @@ body {
   .mobile-switch-mode-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .mobile-switch-mode-btn .btn-text {
+    display: none;
   }
 }
 
