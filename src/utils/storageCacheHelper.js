@@ -78,7 +78,7 @@ export async function uploadToCloudinary(fileBlob, resourceType) {
  */
 export async function saveAudioToCache(trackId, blob, mimeType) {
   try {
-    console.log(`[Storage Cache] Uploading audio ${trackId} (${(blob.size / 1024 / 1024).toFixed(2)} MB) to Cloudinary...`);
+
     
     // Upload audio AND extract artwork in parallel (saves ~1-3s vs sequential)
     const [downloadUrl, artworkResult] = await Promise.allSettled([
@@ -89,7 +89,7 @@ export async function saveAudioToCache(trackId, blob, mimeType) {
           if (tags && tags.artwork) {
             const res = await fetch(tags.artwork);
             const artworkBlob = await res.blob();
-            console.log(`[Storage Cache] Uploading artwork for ${trackId} to Cloudinary...`);
+
             return await uploadToCloudinary(artworkBlob, 'image');
           }
         } catch (e) {
@@ -117,7 +117,7 @@ export async function saveAudioToCache(trackId, blob, mimeType) {
       mimeType
     }).catch(err => console.warn(`[Storage Cache] Firestore write failed for ${trackId}:`, err));
     
-    console.log(`[Storage Cache] Successfully cached ${trackId} to Cloudinary!`);
+
 
   } catch (err) {
     console.error(`[Storage Cache] Failed to save cache for ${trackId}:`, err);

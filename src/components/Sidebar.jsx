@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic, Download, Settings, Users, Radio } from 'lucide-react';
-import { scanDirectory, triggerFileSelect } from '../utils/fileSystemHelper';
+import { Home, Music, Plus, LogOut, FolderPlus, Disc, Sparkles, RefreshCw, ListMusic, Download, Settings, Users, Radio, Camera } from 'lucide-react';
+import { triggerFileSelect } from '../utils/fileSystemHelper';
 import CloudinaryUpload from './CloudinaryUpload';
 import { uploadToCloudinary } from '../utils/storageCacheHelper';
 import { grantPrivateAccess, revokePrivateAccess } from '../utils/sharedLibraryHelper';
@@ -103,7 +103,6 @@ export default function Sidebar({
 
   const isNative = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform();
 
-  const adminUsernames = (import.meta.env.VITE_ADMIN_USERNAMES || '').split(',').map(u => u.trim().toLowerCase());
   return (
     <>
     <aside className="sidebar glass">
@@ -241,6 +240,8 @@ export default function Sidebar({
             try {
               setLoading(true);
               await onRefreshLibrary();
+            } catch (err) {
+              console.error(err);
             } finally {
               setLoading(false);
             }

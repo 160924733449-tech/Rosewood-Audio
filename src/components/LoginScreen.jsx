@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HardDrive, Users, ArrowRight, AlertCircle, Music } from 'lucide-react';
+import { HardDrive, Users, ArrowRight, AlertCircle } from 'lucide-react';
 import { loginUser, signupUser } from '../utils/googleSheetsHelper';
 
 export default function LoginScreen({ onLoginSuccess }) {

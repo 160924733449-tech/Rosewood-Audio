@@ -24,7 +24,7 @@ function setStreamCache(id, value) {
       } catch (e) {}
     }
     streamUrlCache.delete(oldestKey);
-    console.log(`[StreamCache] Evicted LRU track ${oldestKey} and revoked blob URL.`);
+
   }
 }
 
@@ -73,7 +73,7 @@ export async function warmStreamCache() {
         })
       );
     }
-    console.log(`[StreamCache] Warmed ${streamUrlCache.size} tracks into memory.`);
+
   } catch (err) {
     console.warn('[StreamCache] Warm cache failed (non-critical):', err);
   }
@@ -151,7 +151,7 @@ export async function fetchSharedLibraryTracks(appMode = 'public') {
       const cachedSnapshot = await getDocsFromCache(libraryRef);
       if (!cachedSnapshot.empty) {
         const cachedTracks = parseDocs(cachedSnapshot);
-        console.log(`[Library] Loaded ${cachedTracks.length} tracks from Firestore cache.`);
+
 
         // 2. Silently refresh from server in the background, clean up old drive tracks, and self-heal Quran metadata
         getDocs(libraryRef).then(snapshot => {
@@ -214,7 +214,7 @@ export async function fetchSharedLibraryTracks(appMode = 'public') {
 export async function deleteSharedTrack(trackId) {
   try {
     await deleteDoc(doc(db, 'libraryMetadata', trackId));
-    console.log(`[Library] Deleted track ${trackId}`);
+
     return true;
   } catch (error) {
     console.error(`Error deleting track ${trackId}:`, error);
@@ -241,7 +241,7 @@ export async function getStreamUrlForTrack(track, abortSignal = null) {
     // Refresh LRU position by deleting and re-setting
     streamUrlCache.delete(track.id);
     streamUrlCache.set(track.id, cached);
-    console.log(`[Stream] MEMORY CACHE HIT for ${track.name || track.title}. Instant playback.`);
+
     return cached;
   }
 
@@ -255,7 +255,7 @@ export async function getStreamUrlForTrack(track, abortSignal = null) {
     ]);
 
     if (idbResult && idbResult.blob) {
-      console.log(`[Stream] LOCAL CACHE HIT for ${track.name || track.title}. Playing offline instantly.`);
+
       const result = {
         blobUrl: URL.createObjectURL(idbResult.blob),
         artworkUrl: null,

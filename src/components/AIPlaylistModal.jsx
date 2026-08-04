@@ -9,13 +9,21 @@ const AIPlaylistModal = ({ isVisible, onClose, allTracks, onCreatePlaylist }) =>
 
   if (!isVisible) return null;
 
+  const timerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
   const handleGenerate = () => {
     if (!prompt.trim()) return;
     setIsGenerating(true);
     setGeneratedTracks([]);
     
     // Simulate AI loading delay for better UX
-    setTimeout(() => {
+    timerRef.current = setTimeout(() => {
       const tracks = generateAIPlaylist(prompt, allTracks);
       setGeneratedTracks(tracks);
       setIsGenerating(false);

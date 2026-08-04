@@ -30,7 +30,7 @@ const JamSession = ({ isVisible, onClose, currentTrack, isPlaying, currentTime, 
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [mode, sessionId, isHost]);
+  }, [mode, sessionId, isHost, onPlayTrack]);
 
   useEffect(() => {
     // Sync host playback state

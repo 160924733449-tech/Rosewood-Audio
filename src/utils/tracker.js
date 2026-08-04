@@ -26,7 +26,7 @@ export const trackEvent = async (action, songData) => {
       body: JSON.stringify(payload),
     });
     
-    console.log(`[Tracker] Logged ${action} for ${payload.title}`);
+
   } catch (err) {
     console.error('[Tracker] Failed to log event:', err);
   }

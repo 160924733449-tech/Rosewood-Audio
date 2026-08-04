@@ -105,6 +105,14 @@ export class AudioEngine {
     if (!this.initialized) return;
     
     this.karaokeInput.disconnect();
+
+    // Clean up previous karaoke nodes if they exist
+    if (this._karaokeNodes) {
+      this._karaokeNodes.splitter.disconnect();
+      this._karaokeNodes.merger.disconnect();
+      this._karaokeNodes.inverter.disconnect();
+      this._karaokeNodes = null;
+    }
     
     if (enabled) {
       const splitter = this.ctx.createChannelSplitter(2);
@@ -124,6 +132,9 @@ export class AudioEngine {
       inverter.connect(merger, 0, 1);
       
       merger.connect(this.karaokeOutput);
+
+      // Store references for cleanup next time
+      this._karaokeNodes = { splitter, merger, inverter };
     } else {
       this.karaokeInput.connect(this.karaokeOutput);
     }

@@ -80,6 +80,13 @@ export default function App() {
 
   const [isPrivateListening, setIsPrivateListening] = useState(false);
   const audioQualityRef = useRef(audioQuality);
+  const isPlayingRef = useRef(isPlaying);
+  const autoNextRef = useRef(autoNext);
+  const repeatRef = useRef(repeat);
+
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { autoNextRef.current = autoNext; }, [autoNext]);
+  useEffect(() => { repeatRef.current = repeat; }, [repeat]);
 
   const setAudioQuality = (q) => {
     setAudioQualityState(q);
@@ -524,7 +531,7 @@ export default function App() {
         }
         // Crossfade Logic: If we are near the end of the track (e.g. 8 seconds left), start playing the next track
         // Only if autoNext is enabled, and we haven't already triggered it.
-        if (autoNext && !repeat && e.target.duration > 30) {
+        if (autoNextRef.current && !repeatRef.current && e.target.duration > 30) {
           const timeRemaining = e.target.duration - e.target.currentTime;
           if (timeRemaining <= 8.0 && !crossfadeTriggeredRef.current) {
             crossfadeTriggeredRef.current = true;
@@ -671,7 +678,7 @@ export default function App() {
       const newUrl = getQualityTransformedUrl(currentSrc, audioQuality);
       if (newUrl !== currentSrc) {
         console.log(`[Playback] Hot-swapping quality to ${audioQuality}...`);
-        const wasPlaying = isPlaying;
+        const wasPlaying = isPlayingRef.current;
         const currentTime = audioRef.current.currentTime;
         audioRef.current.src = newUrl;
         audioRef.current.currentTime = currentTime;
@@ -1373,7 +1380,7 @@ export default function App() {
         });
       }
     } else {
-      document.title = 'Kiswah Royal Audio';
+      document.title = 'Rosewood Audio';
     }
 
     // Dynamic theming
@@ -1411,9 +1418,9 @@ export default function App() {
     }
 
     if (playedHistory.length > 0) {
-      const prev = playedHistory[playedHistory.length - 1];
-      setPlayedHistory(prev => prev.slice(0, -1));
-      handlePlayTrack(prev, activeQueue);
+      const previousTrack = playedHistory[playedHistory.length - 1];
+      setPlayedHistory(prevHistory => prevHistory.slice(0, -1));
+      handlePlayTrack(previousTrack, activeQueue);
     } else {
       const queue = activeQueue.length > 0 ? activeQueue : tracks;
       const currentIndex = queue.findIndex(t => t.id === (currentTrack?.id || ''));

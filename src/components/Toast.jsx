@@ -38,12 +38,16 @@ function ToastMessage({ toast, onRemove }) {
   const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
+    let innerTimer;
     const timer = setTimeout(() => {
       setIsClosing(true);
-      setTimeout(() => onRemove(toast.id), 300); // match CSS animation
+      innerTimer = setTimeout(() => onRemove(toast.id), 300); // match CSS animation
     }, toast.duration);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (innerTimer) clearTimeout(innerTimer);
+    };
   }, [toast, onRemove]);
 
   return (
