@@ -39,7 +39,11 @@ export default function PlayerBar({
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const formatTime = (time) => {
@@ -49,7 +53,7 @@ export default function PlayerBar({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const handleTimelineMouseDown = (e) => {
+  const handleTimelineInteraction = (e) => {
     if (!timelineRef.current || !duration) return;
     
     const rect = timelineRef.current.getBoundingClientRect();
@@ -58,22 +62,28 @@ export default function PlayerBar({
       onSeek(Math.max(0, Math.min(1, percent)) * duration);
     };
 
-    updateSeek(e.clientX);
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    updateSeek(clientX);
 
-    const handleMouseMove = (moveEvent) => {
-      updateSeek(moveEvent.clientX);
+    const handleMove = (moveEvent) => {
+      const cx = moveEvent.type.includes('touch') ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      updateSeek(cx);
     };
     
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+    const handleUp = () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleUp);
     };
     
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+    document.addEventListener('touchmove', handleMove, { passive: false });
+    document.addEventListener('touchend', handleUp);
   };
 
-  const handleVolumeMouseDown = (e) => {
+  const handleVolumeInteraction = (e) => {
     if (!volumeRef.current) return;
     
     const rect = volumeRef.current.getBoundingClientRect();
@@ -82,19 +92,25 @@ export default function PlayerBar({
       onVolumeChange(Math.max(0, Math.min(1, percent)));
     };
 
-    updateVolume(e.clientX);
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    updateVolume(clientX);
 
-    const handleMouseMove = (moveEvent) => {
-      updateVolume(moveEvent.clientX);
+    const handleMove = (moveEvent) => {
+      const cx = moveEvent.type.includes('touch') ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      updateVolume(cx);
     };
     
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+    const handleUp = () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleUp);
     };
     
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+    document.addEventListener('touchmove', handleMove, { passive: false });
+    document.addEventListener('touchend', handleUp);
   };
 
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
@@ -187,7 +203,7 @@ export default function PlayerBar({
 
         <div className="player-timeline" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', marginTop: '12px' }}>
           <span className="time-stamp">{formatTime(currentTime)}</span>
-          <div className="timeline-slider-container" ref={timelineRef} onMouseDown={handleTimelineMouseDown}>
+          <div className="timeline-slider-container" ref={timelineRef} onMouseDown={handleTimelineInteraction} onTouchStart={handleTimelineInteraction}>
             <div className="timeline-progress" style={{ width: `${progressPercent}%` }} />
             <div className="player-timeline-thumb" style={{ left: `${progressPercent}%` }} />
           </div>
@@ -259,8 +275,6 @@ export default function PlayerBar({
                     setShowQualityMenu(false);
                     addToast(`Audio Quality set to: ${opt.label}`);
                   }}
-                  onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                  onMouseLeave={(e) => e.target.style.background = audioQuality === opt.id ? 'rgba(255,255,255,0.1)' : 'transparent'}
                 >
                   {opt.label}
                 </button>
@@ -281,7 +295,8 @@ export default function PlayerBar({
           <div 
             className="volume-slider-container" 
             ref={volumeRef}
-            onMouseDown={(e) => { e.stopPropagation(); handleVolumeMouseDown(e); }}
+            onMouseDown={(e) => { e.stopPropagation(); handleVolumeInteraction(e); }}
+            onTouchStart={(e) => { e.stopPropagation(); handleVolumeInteraction(e); }}
           >
             <div className="volume-progress" style={{ width: `${volumePercent}%` }}></div>
             <div className="volume-thumb" style={{ left: `${volumePercent}%` }}></div>

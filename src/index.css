@@ -1008,19 +1008,7 @@ body {
   text-align: right;
 }
 
-/* Bottom Player Bar Styling */
-.player-bar {
-  height: 96px;
-  min-height: 96px;
-  border-top: 1.5px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 40px;
-  background: var(--bg-base);
-  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.5);
-  z-index: 100;
-}
+
 
 .player-track-info {
   display: flex;
@@ -2221,7 +2209,7 @@ body {
     backdrop-filter: blur(25px);
     border: 1px solid var(--glass-border);
     padding: 0 16px;
-    z-index: 9999 !important;
+    z-index: 999;
     display: flex !important;
     align-items: center;
     justify-content: space-between;
@@ -2288,7 +2276,6 @@ body {
     justify-content: center;
   }
   
-  .now-playing-overlay .volume-container,
   .now-playing-overlay .audio-visualizer,
   .now-playing-overlay .vinyl-progress-container {
     display: none !important;
@@ -3371,3 +3358,5 @@ body {
 }
 
 
+
+.quality-dropdown-menu button:hover { background: rgba(255,255,255,0.1) !important; }

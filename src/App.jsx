@@ -88,6 +88,12 @@ export default function App() {
   };
   const [playedHistory, setPlayedHistory] = useState([]);
   const [isNowPlayingExpanded, setIsNowPlayingExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!currentTrack && isNowPlayingExpanded) {
+      setIsNowPlayingExpanded(false);
+    }
+  }, [currentTrack, isNowPlayingExpanded]);
   const crossfadeTriggeredRef = useRef(false);
 
   const audioRef = useRef(null); // Keep this for legacy references that still use it for non-playback things
@@ -1661,31 +1667,30 @@ export default function App() {
           setIsPrivateListening={setIsPrivateListening}
         />
       </div>
-      {(!isAdmin || currentTrack) && (
-        <PlayerBar
-          currentTrack={currentTrack}
-          loadingTrack={loadingTrack}
-          isPlaying={isPlaying}
-          onPlayPauseToggle={handlePlayPauseToggle}
-          onNext={handleNextTrack}
-          onPrev={handlePrevTrack}
-          shuffle={shuffle}
-          setShuffle={setShuffle}
-          repeat={repeat}
-          setRepeat={setRepeat}
-          autoNext={autoNext}
-          setAutoNext={setAutoNext}
-          currentTime={currentTime}
-          duration={duration}
-          onSeek={handleSeek}
-          volume={volume}
-          onVolumeChange={setVolume}
-          audioQuality={audioQuality}
-          setAudioQuality={setAudioQuality}
-          onExpand={() => setIsNowPlayingExpanded(true)}
-          isExpanded={isNowPlayingExpanded}
-        />
-      )}
+      
+      <PlayerBar
+        currentTrack={currentTrack}
+        loadingTrack={loadingTrack}
+        isPlaying={isPlaying}
+        onPlayPauseToggle={handlePlayPauseToggle}
+        onNext={handleNextTrack}
+        onPrev={handlePrevTrack}
+        shuffle={shuffle}
+        setShuffle={setShuffle}
+        repeat={repeat}
+        setRepeat={setRepeat}
+        autoNext={autoNext}
+        setAutoNext={setAutoNext}
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={handleSeek}
+        volume={volume}
+        onVolumeChange={setVolume}
+        audioQuality={audioQuality}
+        setAudioQuality={setAudioQuality}
+        onExpand={() => setIsNowPlayingExpanded(true)}
+        isExpanded={isNowPlayingExpanded}
+      />
 
       {isNowPlayingExpanded && currentTrack && (
         <NowPlayingOverlay
@@ -1710,10 +1715,10 @@ export default function App() {
         />
       )}
 
-      {(isAdmin || hasPrivateAccess) && (
+      {(!isNowPlayingExpanded && (isAdmin || hasPrivateAccess)) && (
         <button
           className="mobile-switch-mode-btn"
-          style={{ bottom: currentTrack ? '140px' : '75px' }}
+          style={{ bottom: '140px' }}
           onClick={() => {
             const newMode = appMode === 'public' ? 'private' : 'public';
             setAppMode(newMode);
