@@ -10,6 +10,7 @@ export default function HomeView({
   onRefreshLibrary,
   onPlayTrack,
   isAdmin = false,
+  isPrivateListening = false,
   onNavigateToTab
 }) {
   const displayName = useMemo(() => {
@@ -39,13 +40,15 @@ export default function HomeView({
         <div className="welcome-banner-content">
           <div className="welcome-subheading" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-coral)', fontWeight: '700', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px', fontFamily: 'var(--font-serif)' }}>
             <Moon size={16} />
-            <span>Kiswah Royal Audio Edition</span>
+            <span>{isPrivateListening ? 'Rosewood Private Audio Edition' : 'Kiswah Royal Audio Edition'}</span>
           </div>
           <h1 style={{ fontFamily: 'var(--font-serif)', letterSpacing: '0.5px' }}>
             {greeting}, <span className="gradient-text">{displayName}.</span>
           </h1>
           <p style={{ maxWidth: '520px', marginTop: '6px', color: 'var(--text-secondary)' }}>
-            Welcome to your serene acoustic sanctuary — inspired by the golden embroidery and deep dignity of the Kaaba Kiswah.
+            {isPrivateListening 
+              ? 'Welcome to your serene acoustic sanctuary — styled in beautiful pink glassmorphism aesthetics.'
+              : 'Welcome to your serene acoustic sanctuary — inspired by the golden embroidery and deep dignity of the Kaaba Kiswah.'}
           </p>
 
           <div className="welcome-stats-row" style={{ display: 'flex', gap: '16px', marginTop: '20px', flexWrap: 'wrap' }}>

@@ -161,6 +161,18 @@ export default function App() {
     
     let upcoming = [];
     let current = currTrack;
+    
+    // Dynamically enhance current track with Apple Music metadata for flawless recommendations
+    if (current && (!current.genre || current.genre === 'Unknown Genre' || current.genre.toLowerCase() === 'other' || /^\d/.test(current.title))) {
+      try {
+        const itunes = await fetchITunesMetadata(current.artist, current.title);
+        if (itunes && itunes.genre) {
+          // Temporarily override the track's genre for the recommendation engine
+          current = { ...current, genre: itunes.genre, macroGenre: normalizeGenre(itunes.genre) };
+        }
+      } catch (err) { console.warn('iTunes fetch failed for auto-next', err); }
+    }
+
     const queue = activeQueue.length > 0 ? activeQueue : tracks;
     let currentIndex = queue.findIndex(t => t.id === current?.id);
     
@@ -1696,6 +1708,22 @@ export default function App() {
           setAutoNext={setAutoNext}
         />
       )}
+
+      {(isAdmin || hasPrivateAccess) && (
+        <button
+          className="mobile-switch-mode-btn"
+          style={{ bottom: currentTrack ? '140px' : '75px' }}
+          onClick={() => {
+            const newMode = appMode === 'public' ? 'private' : 'public';
+            setAppMode(newMode);
+            localStorage.setItem('aura_app_mode', newMode);
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          {appMode === 'public' ? 'Private Mode' : 'Public Mode'}
+        </button>
+      )}
+
       <MobileBottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
 
       {/* Friend Activity Panel */}

@@ -79,15 +79,20 @@ export async function fetchITunesMetadata(artist, title) {
   let cleanTitle = title || '';
   if (!cleanTitle) return null;
 
-  // Sanitize the artist and title: remove track numbers (e.g., "01.", "12 - "), file extensions, and special characters
-  cleanArtist = cleanArtist.replace(/^\d+[\s.-]+/, '').trim();
-  cleanTitle = cleanTitle.replace(/^\d+[\s.-]+/, ''); // Remove leading numbers like "01." or "12 - "
+  // Sanitize the artist and title: remove track numbers (e.g., "01.", "12 - ", "24_"), file extensions, and special characters
+  cleanArtist = cleanArtist.replace(/^\d+[\s.\-_]+/, '').trim();
+  
+  cleanTitle = cleanTitle.replace(/^\d+[\s.\-_]+/, ''); // Remove leading numbers
   cleanTitle = cleanTitle.replace(/\.(mp3|m4a|wav|flac|ogg)$/i, ''); // Remove common extensions
-  cleanTitle = cleanTitle.replace(/[\[\(\{].*?[\]\)\}]/g, ''); // Remove anything in brackets (e.g. "(Official Video)")
-  cleanTitle = cleanTitle.trim();
+  cleanTitle = cleanTitle.replace(/[\[\(\{].*?[\]\)\}]/g, ''); // Remove anything in brackets
+  cleanTitle = cleanTitle.replace(/\s*(feat\.?|ft\.?)\s+.*$/i, ''); // Remove trailing feat. from title
+  cleanTitle = cleanTitle.replace(/[-_]/g, ' '); // Replace hyphens and underscores with spaces
+  cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
 
-  const query = `${cleanArtist} ${cleanTitle}`.trim();
-  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=3`;
+  // Create a highly optimized query string, stripping punctuation that breaks iTunes tokenization
+  const queryArtist = cleanArtist.replace(/[\/&,]/g, ' ').replace(/\s*(feat\.?|ft\.?| x | and )\s+/ig, ' ').replace(/\s+/g, ' ').trim();
+  const query = `${queryArtist} ${cleanTitle}`.trim();
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=5`;
 
   try {
     const response = await fetch(url);
@@ -102,20 +107,54 @@ export async function fetchITunesMetadata(artist, title) {
         const matchingResult = data.results.find(r => {
           const apiArtist = (r.artistName || '').toLowerCase();
           const localArtist = cleanArtist.toLowerCase();
+          const apiTitle = (r.trackName || '').toLowerCase();
+          const localTitle = cleanTitle.toLowerCase();
+          
           // Strict check: the iTunes artist must contain the local artist or vice versa
-          return apiArtist.includes(localArtist) || localArtist.includes(apiArtist);
+          if (apiArtist.includes(localArtist) || localArtist.includes(apiArtist)) return true;
+          
+          // Smart check: Split by delimiters to find individual primary artists
+          const splitRegex = /\s*(?:\/|&|,|feat\.?|ft\.?| x | and )\s*/;
+          const localArtists = localArtist.split(splitRegex).filter(Boolean);
+          const apiArtists = apiArtist.split(splitRegex).filter(Boolean);
+          
+          for (const l of localArtists) {
+            for (const a of apiArtists) {
+              if (l && a && (l.includes(a) || a.includes(l))) return true;
+            }
+          }
+          
+          // Lenient fallback: If the title perfectly matches (ignoring API brackets/features), accept it
+          const cleanApiTitle = apiTitle.replace(/[\[\(\{].*?[\]\)\}]/g, '').replace(/\s*(feat\.?|ft\.?)\s+.*$/i, '').trim();
+          if (cleanApiTitle === localTitle && localTitle.length > 2) return true;
+          
+          return false;
         });
         
         if (matchingResult) {
           result = matchingResult;
         } else {
-          // If no matching artist is found, we reject the iTunes result to prevent false positives
-          console.warn(`[iTunes] Rejected false positive for "${cleanTitle}". Expected artist: "${cleanArtist}".`);
+          console.warn(`[iTunes] Rejected false positive for "${cleanTitle}". Expected artist: "${cleanArtist}". API gave: "${data.results[0]?.artistName}"`);
           return null;
         }
       }
 
-      const artwork = result.artworkUrl100 ? result.artworkUrl100.replace('100x100bb.jpg', '500x500bb.jpg') : null;
+      let artwork = null;
+      if (result.artworkUrl100) {
+        const resolutions = ['1000x1000bb.jpg', '600x600bb.jpg', '500x500bb.jpg'];
+        for (const res of resolutions) {
+          const testUrl = result.artworkUrl100.replace('100x100bb.jpg', res);
+          try {
+            const check = await fetch(testUrl, { method: 'HEAD' });
+            if (check.ok) {
+              artwork = testUrl;
+              break;
+            }
+          } catch(e) { /* Ignore CORS or network errors and keep trying */ }
+        }
+        if (!artwork) artwork = result.artworkUrl100.replace('100x100bb.jpg', '500x500bb.jpg');
+      }
+
       const duration = result.trackTimeMillis ? result.trackTimeMillis / 1000 : null;
       
       // Auto-categorize the fetched primary genre

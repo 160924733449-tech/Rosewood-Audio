@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UploadCloud, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { parseMetadata, enrichQuranTrack } from '../utils/metadataHelper';
+import { parseMetadata, enrichQuranTrack, fetchITunesMetadata } from '../utils/metadataHelper';
 import { db } from '../config/firebase';
 import { doc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 
@@ -203,49 +203,66 @@ export default function CloudinaryUpload({ onUploadComplete }) {
     });
 
     if (duplicate) {
-      // Smart Patch: If duplicate exists but is missing artwork (or has default), patch it without re-uploading audio
-      if ((!existingData.artwork || existingData.artwork.includes('kaaba_cover')) && tags.artworkBlob) {
-        console.log(`Duplicate found, patching missing artwork for: ${file.name}`);
-        const artFormData = new FormData();
-        artFormData.append('file', tags.artworkBlob);
-        artFormData.append('upload_preset', uploadPreset);
-        
+      console.log(`Duplicate found: ${file.name}. Checking if artwork needs patching...`);
+      const missingArtwork = (!existingData.artwork || existingData.artwork.includes('kaaba_cover') || existingData.artwork.includes('default'));
+      
+      if (missingArtwork) {
+        let patchData = {};
         try {
-          const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-            method: 'POST',
-            body: artFormData
-          });
-          if (res.ok) {
-            const uploadedData = await res.json();
-            if (uploadedData && uploadedData.secure_url) {
-              await updateDoc(doc(db, 'libraryMetadata', existingDocId), { artwork: uploadedData.secure_url });
-              console.log('Artwork successfully patched in Firestore!');
+          const searchTitle = tags.title || file.name.replace(/\.[^/.]+$/, "");
+          const itunes = await fetchITunesMetadata(tags.artist, searchTitle);
+          
+          if (itunes && itunes.artwork) {
+            patchData.artwork = itunes.artwork;
+          } else if (tags && tags.artworkBlob) {
+            console.log(`iTunes failed for duplicate ${file.name}, uploading local fallback artwork...`);
+            const artFormData = new FormData();
+            artFormData.append('file', tags.artworkBlob);
+            artFormData.append('upload_preset', uploadPreset);
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: artFormData });
+            if (res.ok) {
+              const uploadedData = await res.json();
+              if (uploadedData && uploadedData.secure_url) {
+                patchData.artwork = uploadedData.secure_url;
+              }
             }
           }
-        } catch(e) {
-          console.warn('Failed to patch artwork via duplicate flow:', e);
+        } catch(e) { console.warn('Artwork patch failed', e); }
+
+        if (Object.keys(patchData).length > 0) {
+          try {
+            await updateDoc(doc(db, 'libraryMetadata', existingDocId), patchData);
+            console.log(`Successfully patched artwork for ${file.name}`);
+          } catch (err) { console.warn('Failed to patch artwork', err); }
         }
-      } else {
-        console.log(`Skipped duplicate file: ${file.name}`);
       }
 
       setChunkProgressMap(prev => ({ ...prev, [itemId]: 100 }));
-      return; // Resolves cleanly, skips the 10MB audio upload
+      return; 
     }
 
-    // 3. Start Artwork Upload
-    let artworkUrlPromise = Promise.resolve(null);
-    if (tags && tags.artworkBlob) {
-      const artFormData = new FormData();
-      artFormData.append('file', tags.artworkBlob);
-      artFormData.append('upload_preset', uploadPreset);
-      artworkUrlPromise = fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: 'POST',
-        body: artFormData
-      }).then(res => res.ok ? res.json() : null)
-        .then(data => data ? data.secure_url : null)
-        .catch(() => null);
-    }
+    // 3. Fetch Artwork from Apple Music API (Fallback to local ID3 photo)
+    const searchTitle = tags.title || file.name.replace(/\.[^/.]+$/, "");
+    let artworkUrlPromise = fetchITunesMetadata(tags.artist, searchTitle)
+      .then(itunes => (itunes && itunes.artwork) ? itunes.artwork : null)
+      .catch(() => null)
+      .then(url => {
+        if (url) return url;
+        // Fallback to uploading local ID3 photo
+        if (tags && tags.artworkBlob) {
+          console.log(`Apple Music API failed for new upload ${file.name}, using local ID3 artwork...`);
+          const artFormData = new FormData();
+          artFormData.append('file', tags.artworkBlob);
+          artFormData.append('upload_preset', uploadPreset);
+          return fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST',
+            body: artFormData
+          }).then(res => res.ok ? res.json() : null)
+            .then(data => data ? data.secure_url : null)
+            .catch(() => null);
+        }
+        return null;
+      });
 
     // 4. Chunked Audio Upload
     const CHUNK_SIZE = 10000000; // 10MB

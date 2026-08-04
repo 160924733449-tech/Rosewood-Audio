@@ -2,14 +2,15 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// TODO: Replace with actual Firebase Config from Firebase Console
+// Updated with credentials from rosewood-mobile
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBAir7gb-cZNH_pHSe_mAkhQ5ZW0GEZgj0",
+  authDomain: "rosewood-audio.firebaseapp.com",
+  projectId: "rosewood-audio",
+  storageBucket: "rosewood-audio.firebasestorage.app",
+  messagingSenderId: "115788951436",
+  appId: "1:115788951436:web:ce2ba3b01058977891b0a9",
+  measurementId: "G-KXNQ9GXKRT"
 };
 
 const app = initializeApp(firebaseConfig);

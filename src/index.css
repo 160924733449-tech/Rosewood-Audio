@@ -2127,7 +2127,7 @@ body {
   }
 
   .track-item:hover, .track-item.playing {
-    background: rgba(212, 175, 55, 0.12);
+    background: rgba(var(--accent-rgb), 0.12);
   }
 
   .track-item .track-index {
@@ -2211,27 +2211,28 @@ body {
 
   /* Floating Mini Player (PlayerBar overriding for mobile) */
   .player-bar {
-    position: fixed;
-    bottom: 74px; /* Fallback for browsers that don't support env() */
-    bottom: calc(74px + env(safe-area-inset-bottom, 0px)); /* Just above bottom nav */
-    left: 10px;
-    width: calc(100% - 20px);
-    height: 60px;
+    position: fixed !important;
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 10px !important;
+    width: calc(100% - 20px) !important;
+    height: 60px !important;
     border-radius: 30px;
     background: var(--glass-bg);
     backdrop-filter: blur(25px);
     border: 1px solid var(--glass-border);
     padding: 0 16px;
-    z-index: 999;
-    display: flex;
+    z-index: 9999 !important;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     cursor: pointer;
+    opacity: 1 !important;
+    visibility: visible !important;
   }
 
   .player-bar.expanded {
-    display: none;
+    display: none !important;
   }
 
   .player-bar .player-track-info {
@@ -3324,4 +3325,42 @@ body {
     justify-content: space-between;
   }
 }
+
+/* Mobile Switch Mode Button */
+.mobile-switch-mode-btn {
+  display: none;
+  position: fixed;
+  right: 16px;
+  z-index: 1000;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.9), rgba(255, 105, 180, 0.9));
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.mobile-switch-mode-btn:active {
+  transform: scale(0.95);
+}
+
+.mobile-switch-mode-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 768px) {
+  .mobile-switch-mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
 

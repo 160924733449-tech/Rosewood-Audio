@@ -79,6 +79,7 @@ export default function MainView({
           onImportMusic={handleImportMusic}
           onRefreshLibrary={onRefreshLibrary}
           onPlayTrack={onPlayTrack}
+          isPrivateListening={isPrivateListening}
           isAdmin={isAdmin}
           onNavigateToTab={setCurrentTab}
         />

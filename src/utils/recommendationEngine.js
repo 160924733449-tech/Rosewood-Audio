@@ -211,11 +211,12 @@ export function getNextTrackAutoplayWithState(allTracks, currentTrack, history, 
     score += genreAffinities[track.genre] || 0;
 
     // Smart Continuity: Add a massive score bonus if it matches the current track's genre
+    // and implement custom cross-genre synergies (e.g., Punjabi <-> Hindi)
     if (currentTrack) {
       const currentGenre = currentTrack.macroGenre || currentTrack.genre;
       const trackGenre = track.macroGenre || track.genre;
-      if (currentGenre && trackGenre === currentGenre) {
-        score += 50; 
+      if (currentGenre && trackGenre) {
+        score += getGenreSynergy(currentGenre, trackGenre);
       }
     }
 
@@ -299,4 +300,35 @@ function shuffleArray(array) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+function getGenreSynergy(currentGenre, targetGenre) {
+  if (!currentGenre || !targetGenre) return 0;
+  const c = currentGenre.toLowerCase();
+  const t = targetGenre.toLowerCase();
+  
+  if (c === t) return 50; // Exact match
+
+  // Punjabi and Hindi synergy
+  const isCDesi = c.includes('punjabi') || c.includes('hindi') || c.includes('bollywood') || c.includes('desi');
+  const isTDesi = t.includes('punjabi') || t.includes('hindi') || t.includes('bollywood') || t.includes('desi');
+  
+  const isCEnglish = c.includes('english') || c.includes('pop') || c.includes('rock') || c.includes('soft') || c.includes('beat') || c.includes('lofi') || c.includes('jazz');
+  const isTEnglish = t.includes('english') || t.includes('pop') || t.includes('rock') || t.includes('soft') || t.includes('beat') || t.includes('lofi') || t.includes('jazz');
+  
+  // Heavily penalize jumping between Desi and Western/English unless the user explicitly skips/changes
+  if (isCDesi && isTEnglish) return -100;
+  if (isCEnglish && isTDesi) return -100;
+
+  if (isCDesi && isTDesi) return 40; // High synergy between Punjabi and Hindi
+
+  // Soft English vs Beat English
+  const isCSoft = c.includes('soft') || c.includes('acoustic') || c.includes('chill') || c.includes('lofi');
+  const isTSoft = t.includes('soft') || t.includes('acoustic') || t.includes('chill') || t.includes('lofi');
+  if (isCEnglish && isTEnglish) {
+    if (isCSoft === isTSoft) return 30; // Both are soft or both are beat
+    return -20; // One is soft, one is upbeat, penalize slightly to maintain vibe
+  }
+  
+  return 0;
 }
