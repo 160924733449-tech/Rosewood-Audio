@@ -6,5 +6,9 @@ export default defineConfig({
   plugins: [react()],
   build: {
     // Rely on default chunking to avoid Rolldown incompatibility
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
   }
 })
