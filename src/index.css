@@ -536,15 +536,9 @@ body {
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-subtle);
-  padding: 28px 24px 120px 24px;
+  padding: 28px 24px;
   height: 100%;
   background: var(--bg-base);
-  overflow-y: auto;
-  /* Hide scrollbar for a cleaner look while keeping functionality */
-  scrollbar-width: none; 
-}
-.sidebar::-webkit-scrollbar {
-  display: none;
 }
 
 .sidebar-logo {
